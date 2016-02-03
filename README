@@ -1,0 +1,19 @@
+
+-------------
+Building icamerasrc:(for now, you also need to clone and buildup libcamhal repo as well)
+
+   Prerequisite: Make sure you have installed camera HAL successfully.
+
+   autoreconf --install
+
+   ./configure --libdir=/usr/lib64
+
+   make
+
+   make install
+
+-------------
+Generate RPM package from source and install RPM on target host
+
+   #Please refer to rpm/README
+

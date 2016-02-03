@@ -1,0 +1,26 @@
+Under ubuntu, make rpm package for icamerasrc.
+
+*****************************************************
+Prerequisite for build RPM package:
+
+Install rpmbuild under ubuntu if needed,
+sudo apt-get install rpm
+
+Install auto-make utils needed for building the rpm from source,
+sudo apt-get install autoconf libtool
+
+*****************************************************
+Build RPM for icamerasrc:
+
+Run the shell script under this directory to build and package rpm.
+
+./build_rpm.sh
+
+*****************************************************
+Install icamerasrc RPM to target host:
+
+sudo rpm -ivh --nodeps --noparentdirs --prefix `pkg-config --variable=pluginsdir gstreamer-1.0` icamerasrc-*.rpm
+
+or
+
+sudo rpm -ivh --nodeps  --prefix `pkg-config --variable=pluginsdir gstreamer-1.0` icamerasrc-*.rpm
