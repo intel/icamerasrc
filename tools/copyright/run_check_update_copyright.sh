@@ -54,6 +54,13 @@ usage() {
 # Main
 ############
 
+distro=`cat /etc/issue | grep "Ubuntu 14.04"`
+
+if [ ! -n "$distro" ];then
+    echo "Warning: the script only works on Ubuntu distro, above 14.04 version."
+    exit 1
+fi
+
 for i in "$*"
 do
     args=$i

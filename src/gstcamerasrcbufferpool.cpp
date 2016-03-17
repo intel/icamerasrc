@@ -245,6 +245,7 @@ static gboolean gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
         g_print("Average fps is:%.4f\n\n",camerasrc->fps_debug.av_fps);
         camerasrc->print_fps=false;
      } else {
+        g_print("\nTotal frame is:%g\n",camerasrc->fps_debug.buf_count);
         g_print("\nMax fps is:%.4f,Minimum fps is:%.4f,Average fps is:%.4f\n\n",
                      camerasrc->fps_debug.max_fps,
                      camerasrc->fps_debug.min_fps,
@@ -304,7 +305,7 @@ static void gst_camerasrc_set_meta(Gstcamerasrc *camerasrc, GstBuffer *alloc_buf
       stride[i] = camerasrc->bpl;
       offs = stride[i] * camerasrc->streams[0].height;
   }
-  if (camerasrc->interlace_mode)
+  if (camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE)
       videoFlags = GST_VIDEO_FRAME_FLAG_INTERLACED;
   GST_DEBUG_OBJECT(camerasrc, "set Buffer meta: videoFlage: %d, videofmt: %d, width: %d, \
           heigh: %d, n_planes: %d, offset: %d, stride: %d\n", videoFlags, videoFmt,
@@ -327,6 +328,7 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
   int ret;
 
   switch (camerasrc->io_mode) {
+    case GST_CAMERASRC_IO_MODE_MMAP:
     case GST_CAMERASRC_IO_MODE_USERPTR:
       alloc_buffer = gst_buffer_new();
       meta = GST_CAMERASRC_META_ADD(alloc_buffer);
@@ -335,14 +337,19 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
       if (meta->buffer == NULL) {
         return GST_FLOW_ERROR;
       }
-      meta->buffer->length = pool->size;
-      meta->buffer->conf = &camerasrc->streams[0];
-      ret = posix_memalign(&meta->buffer->addr, getpagesize(), pool->size);
-      if (ret < 0) {
-        return GST_FLOW_ERROR;
+      meta->buffer->s = camerasrc->streams[0];
+      if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_USERPTR) {
+          ret = posix_memalign(&meta->buffer->addr, getpagesize(), pool->size);
+          meta->buffer->s.memType = V4L2_MEMORY_USERPTR;
+      } else {
+          ret = camera_device_allocate_memory(camerasrc->device_id, meta->buffer);
+          meta->buffer->s.memType = V4L2_MEMORY_MMAP;
       }
+      if (ret < 0) {
+          return GST_FLOW_ERROR;
+      }
+
       meta->mem = meta->buffer->addr;
-      meta->buffer->memType = V4L2_MEMORY_USERPTR;
 
       gst_buffer_append_memory (alloc_buffer, gst_memory_new_wrapped (GST_MEMORY_FLAG_NO_SHARE, meta->mem, pool->size, 0, pool->size, NULL, NULL));
     break;
@@ -361,7 +368,7 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
         return GST_FLOW_ERROR;
       }
       meta->buffer->dmafd = dup(gst_dmabuf_memory_get_fd(mem));
-      meta->buffer->memType = V4L2_MEMORY_DMABUF;
+      meta->buffer->s.memType = V4L2_MEMORY_DMABUF;
 
     break;
     default:
@@ -369,8 +376,7 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
     goto err_io_mode;
   }
 
-  meta->buffer->length = pool->size;
-  meta->buffer->conf = &camerasrc->streams[0];
+  meta->buffer->s = camerasrc->streams[0];
   meta->index = pool->number_allocated;
   pool->buffers[meta->index] = alloc_buffer;
   pool->number_allocated++;
@@ -457,17 +463,18 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
     return GST_FLOW_ERROR;
   }
 
-  if ((camerasrc->interlace_mode == true) && camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_NONE) {
+  if ((camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE)
+          && camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_NONE) {
     ret = gst_camerasrc_deinterlace_frame(camerasrc, meta->buffer);
     if (ret != 0) {
       GST_ERROR_OBJECT(camerasrc, "deinterlace frame failed ret %d.\n", ret);
       return GST_FLOW_ERROR;
     }
-  } else if (camerasrc->interlace_mode == true) {
-    if ((meta->buffer->interlaced_field == CAMERA_INTERLACED_FIELD_TOP) || (meta->buffer->interlaced_field == CAMERA_INTERLACED_FIELD_BOTTOM)) {
+  } else if ((meta->buffer->s.field == V4L2_FIELD_TOP) || (meta->buffer->s.field == V4L2_FIELD_BOTTOM)) {
+      if (meta->buffer->s.field == V4L2_FIELD_TOP)
+          GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
       GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
       GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_ONEFIELD);
-    }
   }
 
   *buffer = gbuffer;
@@ -516,31 +523,50 @@ static GstFlowReturn gst_camerasrc_buffer_pool_dqbuf(GstCamerasrcBufferPool *poo
 }
 #endif
 
-static int gst_camerasrc_stride_to_bpl(int format, int stride)
+static int gst_camerasrc_get_bpl(int format, int width)
 {
   int bpp, bpl = 0;
-  switch (format) {
-    case V4L2_PIX_FMT_SRGGB8:
-    case V4L2_PIX_FMT_SGRBG8:
-    case V4L2_PIX_FMT_SGBRG8:
-    case V4L2_PIX_FMT_SBGGR8:
+
+  switch(format) {
+    case V4L2_PIX_FMT_SRGGB8: //packed RGB, 8bpp, R,G,G,B
+    case V4L2_PIX_FMT_SGRBG8: //packed RGB, 8bpp, G,R,B,G
+    case V4L2_PIX_FMT_SGBRG8: //packed RGB, 8bpp, G,B,R,G
+    case V4L2_PIX_FMT_SBGGR8: //packed RGB, 8bpp, B,G,G,R
       bpp = 8;
       break;
-    case V4L2_PIX_FMT_NV12:
+
+    case V4L2_PIX_FMT_NV12: //planar YUV 4:2:0, 12bpp, 1 plane for Y and 1 plane for the UV
+    case V4L2_PIX_FMT_NV21:
+    case V4L2_PIX_FMT_YUV420:
+    case V4L2_PIX_FMT_YVU420:
       bpp = 12;
       break;
+
     case V4L2_PIX_FMT_SRGGB10:
     case V4L2_PIX_FMT_SGRBG10:
     case V4L2_PIX_FMT_SGBRG10:
     case V4L2_PIX_FMT_SBGGR10:
-    case V4L2_PIX_FMT_YUYV:
-    case V4L2_PIX_FMT_UYVY:
+    case V4L2_PIX_FMT_YUYV: //packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr
+    case V4L2_PIX_FMT_UYVY: //packed YUV 4:2:2, 16bpp, Cb Y0 Cr Y1
+    case V4L2_PIX_FMT_RGB565:
+    case V4L2_PIX_FMT_SRGGB12:
+      bpp = 16;
+      break;
+
+    case V4L2_PIX_FMT_BGR24:
+      bpp = 24;
+      break;
+
+    case V4L2_PIX_FMT_XRGB32: //internal RGB565.
+    case V4L2_PIX_FMT_XBGR32: //internal RGB8888
+      bpp = 32;
+      break;
     default:
       bpp = 16;
       break;
   }
-  bpl = (stride * bpp) / 8;
 
+  bpl = ALIGN_64(width * (bpp/8));
   return bpl;
 }
 
@@ -550,32 +576,20 @@ GstBufferPool *gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc, GstCaps *
   GstCamerasrcBufferPool *pool;
   GstStructure *s;
 
-  camera_frame_info_t frame_info;
-  frame_info.format = camerasrc->streams[0].format;
-  frame_info.width = camerasrc->streams[0].width;
-  frame_info.height = camerasrc->streams[0].height;
-  frame_info.interlaced_video = camerasrc->interlace_mode ? INTERLACED_ENABLED : INTERLACED_DISABLED;
-
-  int ret = query_frame_info(camerasrc->device_id, frame_info);
-  if (ret != 0) {
-    GST_ERROR_OBJECT(camerasrc, "failed to query frame info for format %d %dx%d"
-       ,camerasrc->streams[0].format, camerasrc->streams[0].width, camerasrc->streams[0].height);
-    return NULL;
-  }
-
   pool = (GstCamerasrcBufferPool *) g_object_new (GST_TYPE_CAMERASRC_BUFFER_POOL, NULL);
 
-  /* if interlace_mode and deinterlace_method are set both, camerasrc will do internal deinterlace, so the buffer is double. */
-  if ((camerasrc->interlace_mode == true) && camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_NONE) {
-    frame_info.size *= 2;
+  /* if interlace_field and deinterlace_method are set both, camerasrc will do internal deinterlace, so the buffer is double. */
+  if ((camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE)
+          && camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_NONE) {
+    camerasrc->streams[0].size *= 2;
   }
 
-  camerasrc->bpl = gst_camerasrc_stride_to_bpl(camerasrc->streams[0].format, frame_info.stride);
+  camerasrc->bpl = gst_camerasrc_get_bpl(camerasrc->streams[0].format, camerasrc->streams[0].width);
   pool->src = camerasrc;
   camerasrc->pool = GST_BUFFER_POOL(pool);
 
   s = gst_buffer_pool_get_config (GST_BUFFER_POOL_CAST (pool));
-  gst_buffer_pool_config_set_params (s, caps, frame_info.size, MIN_PROP_BUFFERCOUNT, MAX_PROP_BUFFERCOUNT);
+  gst_buffer_pool_config_set_params (s, caps, camerasrc->streams[0].size, MIN_PROP_BUFFERCOUNT, MAX_PROP_BUFFERCOUNT);
   gst_buffer_pool_set_config (GST_BUFFER_POOL_CAST (pool), s);
 
   return GST_BUFFER_POOL (pool);

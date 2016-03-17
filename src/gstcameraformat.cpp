@@ -168,7 +168,7 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
         return NULL;
       }
 
-      stream_config_array_t configs;
+      stream_array_t configs;
       int numberOfFormat = 0;
       int previousFormat = -1;
       int formats[20];
@@ -176,7 +176,7 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
       // TODO the implementation below should be optimized
       for (size_t j = 0; j < configs.size(); j++) {
           // Find all non-interlaced format
-          if (configs[j].type == INTERLACED_DISABLED
+          if (configs[j].field == GST_CAMERASRC_INTERLACE_FIELD_ANY
                   && configs[j].format != previousFormat) {
               formats[numberOfFormat] = configs[j].format;
               numberOfFormat++;
@@ -186,17 +186,12 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
       if (previousFormat == -1 || numberOfFormat == 0) {
         GST_ERROR_OBJECT(camerasrc_class, "failed to get format info from libcamhal %d\n", ret);
       }
-      camera_res_array_t resolutions;
-      info.capability->getSupportedSizeForFormat(resolutions, previousFormat, INTERLACED_DISABLED);
-      if (resolutions.size() <= 0) {
-        GST_ERROR_OBJECT(camerasrc_class, "failed to get resolution info from libcamhal %d\n", ret);
-      }
       camera_resolution_t tmp_res[20];
-      for (size_t j = 0; j < resolutions.size(); j++) {
-        tmp_res[j].width = resolutions[j].width;
-        tmp_res[j].height = resolutions[j].height;
+      for (size_t j = 0; j < configs.size(); j++) {
+        tmp_res[j].width = configs[j].width;
+        tmp_res[j].height = configs[j].height;
       }
-      get_max_and_min_resolution(tmp_res, resolutions.size(), &max_w, &max_h, &min_w, &min_h);
+      get_max_and_min_resolution(tmp_res, configs.size(), &max_w, &max_h, &min_w, &min_h);
 
       for (int j = 0; j < numberOfFormat; j++) {
         structure = gst_camerasrc_format_to_structure (formats[j]);

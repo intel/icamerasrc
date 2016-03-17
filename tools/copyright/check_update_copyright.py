@@ -46,7 +46,7 @@ import os
 import re
 import sys
 import datetime
-from repository import GitRepository
+from gbp.git.repository import GitRepository
 
 class CheckCopyrightError(Exception):
     pass

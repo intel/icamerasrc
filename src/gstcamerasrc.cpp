@@ -51,6 +51,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
 #include <gst/gst.h>
@@ -79,18 +80,54 @@ enum
 enum
 {
   PROP_0,
-  PROP_SILENT,
 
   PROP_CAPTURE_MODE,
   PROP_BUFFERCOUNT,
-  PROP_WIDTH,
-  PROP_HEIGHT,
-  PROP_PIXELFORMAT,
   PROP_PRINT_FPS,
   PROP_INTERLACE_MODE,
   PROP_DEINTERLACE_METHOD,
-  PROP_CAMERA_NAME,
+  PROP_DEVICE_ID,
   PROP_IO_MODE,
+  /* Image Adjust-ment*/
+  PROP_SHARPNESS,
+  PROP_BRIGHTNESS,
+  PROP_CONTRAST,
+  PROP_HUE,
+  PROP_SATURATION,
+  /* Exposure Settings*/
+  PROP_IRIS_MODE,
+  PROP_IRIS_LEVEL,
+  PROP_EXPOSURE_TIME,
+  PROP_GAIN,
+  /* Backlight Settings*/
+  PROP_WDR_MODE,
+  PROP_BLC_AREA_MODE,
+  PROP_WDR_LEVEL,
+  /* White Balance*/
+  PROP_AWB_MODE,
+  PROP_AWB_GAIN_R,
+  PROP_AWB_GAIN_G,
+  PROP_AWB_GAIN_B,
+  /* Noise Reduction*/
+  PROP_NR_MODE,
+  /* Video Adjustment*/
+  PROP_SCENE_MODE,
+  PROP_SENSOR_RESOLUTION,
+  PROP_FPS,
+
+  PROP_AE_MODE,
+  PROP_EXPOSURE_EV,
+  PROP_CCT_RANGE,
+  PROP_WP,
+  PROP_AWB_SHIFT_R,
+  PROP_AWB_SHIFT_G,
+  PROP_AWB_SHIFT_B,
+  PROP_AE_REGION,
+  PROP_AWB_REGION,
+  PROP_ANTIBANDING_MODE,
+  PROP_OVERALL,
+  PROP_SPATIAL,
+  PROP_TEMPORAL,
 };
 
 #define gst_camerasrc_parent_class parent_class
@@ -118,6 +155,27 @@ static gboolean gst_camerasrc_unlock_stop(GstBaseSrc *src);
 static gboolean gst_camerasrc_sink_event(GstPad * pad, GstObject * parent, GstEvent * event);
 static GstFlowReturn gst_camerasrc_chain (GstPad * pad, GstObject * parent, GstBuffer * buf);
 #endif
+
+static GType gst_camerasrc_interlace_field_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType interlace_field_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_INTERLACE_FIELD_ANY,
+        "interlace mode: ANY", "any"},
+    {GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE,
+        "interlace mode: ALTERNATE", "alternate"},
+    {0, NULL, NULL},
+  };
+
+  if (!interlace_field_type) {
+    interlace_field_type =
+        g_enum_register_static ("GstCamerasrcInterlacMode", method_types);
+  }
+  return interlace_field_type;
+
+}
 
 static GType gst_camerasrc_deinterlace_method_get_type(void)
 {
@@ -148,13 +206,13 @@ static GType gst_camerasrc_io_mode_get_type(void)
 
   static const GEnumValue method_types[] = {
     {GST_CAMERASRC_IO_MODE_USERPTR,
-        "GST_CAMERASRC_IO_MODE_USERPTR", "USERPTR"},
+        "UserPtr", "userptr"},
     {GST_CAMERASRC_IO_MODE_MMAP,
-        "GST_CAMERASRC_IO_MODE_MMAP", "MMAP"},
+        "MMAP", "mmap"},
     {GST_CAMERASRC_IO_MODE_DMA,
-        "GST_CAMERASRC_IO_MODE_DMA", "DMA"},
+        "DMA", "dma"},
     {GST_CAMERASRC_IO_MODE_DMA_IMPORT,
-        "GST_CAMERASRC_IO_MODE_DMA_IMPORT", "DMA_IMPORT"},
+        "DMA import", "dma_import"},
     {0, NULL, NULL},
   };
 
@@ -162,6 +220,269 @@ static GType gst_camerasrc_io_mode_get_type(void)
     io_mode_type = g_enum_register_static ("GstCamerasrcIoMode", method_types);
   }
   return io_mode_type;
+}
+
+static GType gst_camerasrc_device_id_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType device_type = 0;
+
+  int count = get_number_of_cameras();
+  static GEnumValue *method_types = new GEnumValue[count+1];
+  camera_info_t cam_info;
+  int id, ret = 0;
+
+  for (id = 0; id < count; id++) {
+      ret = get_camera_info(id, cam_info);
+      if (ret < 0) {
+          g_print("failed to get device name.");
+          return FALSE;
+      }
+
+      method_types[id].value = id;
+      method_types[id].value_name = cam_info.description;
+      method_types[id].value_nick = cam_info.name;
+  }
+
+  /* the last element of array should be set NULL*/
+  method_types[id].value = 0;
+  method_types[id].value_name = NULL;
+  method_types[id].value_nick = NULL;
+
+  if (!device_type)
+    device_type = g_enum_register_static("GstCamerasrcDeviceName", method_types);
+
+  return device_type;
+}
+
+static GType gst_camerasrc_iris_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType iris_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_IRIS_MODE_AUTO,
+        "Auto", "auto"},
+    {GST_CAMERASRC_IRIS_MODE_MANUAL,
+        "Manual", "manual"},
+    {GST_CAMERASRC_IRIS_MODE_CUSTOMIZED,
+        "Customized", "customized"},
+    {0, NULL, NULL},
+  };
+
+  if (!iris_mode_type) {
+    iris_mode_type = g_enum_register_static ("GstCamerasrcIrisMode", method_types);
+   }
+  return iris_mode_type;
+}
+
+static GType gst_camerasrc_wdr_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType wdr_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_WDR_MODE_OFF,
+          "Non-WDR mode", "off"},
+    {GST_CAMERASRC_WDR_MODE_ON,
+          "WDR mode", "on"},
+    {GST_CAMERASRC_WDR_MODE_AUTO,
+          "Auto", "auto"},
+     {0, NULL, NULL},
+   };
+
+  if (!wdr_mode_type) {
+    wdr_mode_type = g_enum_register_static ("GstCamerasrcWdrMode", method_types);
+  }
+  return wdr_mode_type;
+}
+
+static GType gst_camerasrc_blc_area_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType blc_area_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_BLC_AREA_MODE_OFF,
+          "Off", "off"},
+    {GST_CAMERASRC_BLC_AREA_MODE_ON,
+          "On", "on"},
+     {0, NULL, NULL},
+   };
+
+  if (!blc_area_mode_type) {
+    blc_area_mode_type = g_enum_register_static ("GstCamerasrcBlcAreaMode", method_types);
+  }
+  return blc_area_mode_type;
+}
+
+static GType gst_camerasrc_awb_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType awb_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_AWB_MODE_AUTO,
+          "Auto", "auto"},
+    {GST_CAMERASRC_AWB_MODE_PARTLY_OVERCAST,
+          "Partly overcast", "partly_overcast"},
+    {GST_CAMERASRC_AWB_MODE_FULLY_OVERCAST,
+          "Fully overcast", "fully_overcast"},
+    {GST_CAMERASRC_AWB_MODE_FLUORESCENT,
+          "Fluorescent", "fluorescent"},
+    {GST_CAMERASRC_AWB_MODE_INCANDESCENT,
+          "Incandescent", "incandescent"},
+    {GST_CAMERASRC_AWB_MODE_SUNSET,
+          "Sunset", "sunset"},
+    {GST_CAMERASRC_AWB_MODE_VIDEO_CONFERENCING,
+          "Video conferencing", "video_conferencing"},
+    {GST_CAMERASRC_AWB_MODE_DAYLIGHT,
+          "Daylight", "daylight"},
+    {GST_CAMERASRC_AWB_MODE_CCT_RANGE,
+          "CCT range", "cct_range"},
+    {GST_CAMERASRC_AWB_MODE_WHITE_POINT,
+          "White point", "white_point"},
+    {GST_CAMERASRC_AWB_MODE_MANUAL_GAIN,
+          "Manual gain", "manual_gain"},
+     {0, NULL, NULL},
+   };
+
+  if (!awb_mode_type) {
+    awb_mode_type = g_enum_register_static ("GstCamerasrcAwbMode", method_types);
+  }
+  return awb_mode_type;
+}
+
+static GType gst_camerasrc_nr_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType nr_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_NR_MODE_OFF,
+          "Turn off noise filter", "off"},
+    {GST_CAMERASRC_NR_MODE_AUTO,
+          "Completely auto noise reduction", "auto"},
+    {GST_CAMERASRC_NR_MODE_NORMAL,
+          "Manual-Normal", "normal"},
+    {GST_CAMERASRC_NR_MODE_EXPERT,
+          "Manual-Expert", "expert"},
+     {0, NULL, NULL},
+   };
+
+  if (!nr_mode_type) {
+    nr_mode_type = g_enum_register_static ("GstCamerasrcNrMode", method_types);
+  }
+  return nr_mode_type;
+}
+
+static GType gst_camerasrc_scene_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType scene_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_SCENE_MODE_AUTO,
+          "Auto", "auto"},
+    {GST_CAMERASRC_SCENE_MODE_INDOOR,
+          "Indorr", "indoor"},
+    {GST_CAMERASRC_SCENE_MODE_OUTOOR,
+          "Outdoor", "outdoor"},
+    {GST_CAMERASRC_SCENE_MODE_DISABLED,
+          "Disabled", "disabled"},
+     {0, NULL, NULL},
+   };
+
+  if (!scene_mode_type) {
+    scene_mode_type = g_enum_register_static ("GstCamerasrcSceneMode", method_types);
+  }
+  return scene_mode_type;
+}
+
+static GType gst_camerasrc_sensor_resolution_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType sensor_resolution_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_SENSOR_RESOLUTION_1080P,
+          "1080P", "1080p"},
+    {GST_CAMERASRC_SENSOR_RESOLUTION_720P,
+          "720P", "720p"},
+    {GST_CAMERASRC_SENSOR_RESOLUTION_4K,
+          "4K", "4K"},
+     {0, NULL, NULL},
+   };
+
+  if (!sensor_resolution_type) {
+    sensor_resolution_type = g_enum_register_static ("GstCamerasrcSensorResolution", method_types);
+  }
+  return sensor_resolution_type;
+}
+
+static GType gst_camerasrc_fps_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType fps_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_FPS_25,
+          "25fps", "25"},
+    {GST_CAMERASRC_FPS_30,
+          "30fps", "30"},
+    {GST_CAMERASRC_FPS_50,
+          "50fps", "50"},
+    {GST_CAMERASRC_FPS_60,
+          "60fps", "60"},
+    {0, NULL, NULL},
+   };
+
+  if (!fps_type) {
+    fps_type = g_enum_register_static ("GstCamerasrcFps", method_types);
+  }
+  return fps_type;
+}
+
+static GType gst_camerasrc_ae_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType ae_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_AE_MODE_AUTO,
+          "Auto", "auto"},
+    {GST_CAMERASRC_AE_MODE_MANUAL,
+          "Manual", "manual"},
+     {0, NULL, NULL},
+   };
+
+  if (!ae_mode_type) {
+    ae_mode_type = g_enum_register_static ("GstCamerasrcAeMode", method_types);
+  }
+  return ae_mode_type;
+}
+
+static GType gst_camerasrc_antibanding_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType antibanding_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_ANTIBANDING_MODE_AUTO,
+          "Auto", "auto"},
+    {GST_CAMERASRC_ANTIBANDING_MODE_50HZ,
+          "50Hz", "50"},
+    {GST_CAMERASRC_ANTIBANDING_MODE_60HZ,
+          "60HZ", "60"},
+    {GST_CAMERASRC_ANTIBANDING_MODE_OFF,
+          "Off", "off"},
+    {0, NULL, NULL},
+   };
+
+  if (!antibanding_mode_type) {
+    antibanding_mode_type = g_enum_register_static ("GstCamerasrcAntibandingMode", method_types);
+  }
+  return antibanding_mode_type;
 }
 
 static void gst_camerasrc_dispose(GObject *object)
@@ -180,6 +501,9 @@ gst_camerasrc_finalize (Gstcamerasrc *camerasrc)
   }
 
   camera_hal_deinit();
+  camerasrc->camera_open = false;
+  delete camerasrc->param;
+  camerasrc->param = NULL;
 
   G_OBJECT_CLASS (parent_class)->finalize ((GObject *) (camerasrc));
 }
@@ -206,50 +530,166 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
 
   gstelement_class->change_state = gst_camerasrc_change_state;
 
-  g_object_class_install_property (gobject_class, PROP_SILENT,
-      g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
-        FALSE, (GParamFlags)G_PARAM_READWRITE));
-
   g_object_class_install_property(gobject_class,PROP_CAPTURE_MODE,
-      g_param_spec_int("capture-mode","capture mode","capture mode",
+      g_param_spec_int("capture-mode","capture mode","In which mode will implement preview/video/still",
         0,G_MAXINT,CAMERASRC_CAPTURE_MODE_PREVIEW,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property(gobject_class,PROP_BUFFERCOUNT,
-      g_param_spec_int("buffer-count","buffer count","buffer count",
+      g_param_spec_int("buffer-count","buffer count","The number of buffer to allocate when do the streaming",
         MIN_PROP_BUFFERCOUNT,MAX_PROP_BUFFERCOUNT,DEFAULT_PROP_BUFFERCOUNT,
         (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
-  g_object_class_install_property(gobject_class,PROP_WIDTH,
-      g_param_spec_int("width","width","width",
-        0,G_MAXINT,DEFAULT_PROP_WIDTH,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
-  g_object_class_install_property(gobject_class,PROP_HEIGHT,
-      g_param_spec_int("height","height","height",
-        0,G_MAXINT,DEFAULT_PROP_HEIGHT,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
-  g_object_class_install_property(gobject_class,PROP_PIXELFORMAT,
-      g_param_spec_int("pixelformat","pixelformat","pixelformat",
-        0,G_MAXINT,DEFAULT_PROP_PIXELFORMAT,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
   g_object_class_install_property(gobject_class,PROP_PRINT_FPS,
-      g_param_spec_boolean("printfps","printfps","printfps",
+      g_param_spec_boolean("printfps","printfps","Whether print the FPS when do the streaming",
         DEFAULT_PROP_PRINT_FPS,(GParamFlags)(G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
 
   g_object_class_install_property (gobject_class, PROP_INTERLACE_MODE,
-      g_param_spec_boolean ("interlace-mode", "interlace-mode", "interlaced output mode",
-        FALSE, (GParamFlags)G_PARAM_READWRITE));
+      g_param_spec_enum ("interlace-mode", "interlace-mode", "The interlace method",
+        gst_camerasrc_interlace_field_get_type(), DEFAULT_PROP_INTERLACE_MODE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class, PROP_DEINTERLACE_METHOD,
-      g_param_spec_enum ("deinterlace-method", "Deinterlace method", "Deinterlace method to use",
+      g_param_spec_enum ("deinterlace-method", "Deinterlace method", "The deinterlace method that icamerasrc run",
         gst_camerasrc_deinterlace_method_get_type(), DEFAULT_DEINTERLACE_METHOD, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
-  g_object_class_install_property(gobject_class,PROP_CAMERA_NAME,
-      g_param_spec_string("device-name","device-name","device-name",
-        DEFAULT_PROP_CAMERA_NAME,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+ g_object_class_install_property (gobject_class,PROP_DEVICE_ID,
+      g_param_spec_enum("device-name","device-name","The input devices name queried from HAL",
+   gst_camerasrc_device_id_get_type(), DEFAULT_PROP_DEVICE_ID, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class, PROP_IO_MODE,
-      g_param_spec_enum ("io-mode", "IO mode", "I/O mode",
+      g_param_spec_enum ("io-mode", "IO mode", "The memory types of the frame buffer",
           gst_camerasrc_io_mode_get_type(), DEFAULT_PROP_IO_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_SHARPNESS,
+      g_param_spec_int("sharpness","sharpness","sharpness",
+        -128,127,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_BRIGHTNESS,
+      g_param_spec_int("brightness","brightness","brightness",
+        -128,127,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_CONTRAST,
+      g_param_spec_int("contrast","contrast","contrast",
+        -128,127,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_HUE,
+      g_param_spec_int("hue","hue","hue",
+        -128,127,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_SATURATION,
+      g_param_spec_int("saturation","saturation","saturation",
+        -128,127,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_IRIS_MODE,
+      g_param_spec_enum ("iris-mode", "IRIS mode", "IRIS mode",
+          gst_camerasrc_iris_mode_get_type(), DEFAULT_PROP_IRIS_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_IRIS_LEVEL,
+      g_param_spec_int("iris-level","IRIS level","The percentage of opening in IRIS",
+        0,100,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_EXPOSURE_TIME,
+      g_param_spec_int("exposure-time","Exposure time","Exposure time(only valid in manual AE mode)",
+        0,1000000,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_GAIN,
+      g_param_spec_int("gain","Gain","Implement total gain or maximal gain(only valid in manual AE mode).Unit: db",
+        0,60,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_WDR_MODE,
+      g_param_spec_enum ("wdr-mode", "WDR mode", "WDR mode",
+          gst_camerasrc_wdr_mode_get_type(), DEFAULT_PROP_WDR_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_BLC_AREA_MODE,
+      g_param_spec_enum ("blc-area-mode", "BLC area mode", "BLC area mode",
+          gst_camerasrc_blc_area_mode_get_type(), DEFAULT_PROP_BLC_AREA_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_WDR_LEVEL,
+      g_param_spec_int("wdr-level","WDR level","WDR level",
+        0,15,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_AWB_MODE,
+      g_param_spec_enum ("awb-mode", "AWB mode", "White balance mode",
+          gst_camerasrc_awb_mode_get_type(), DEFAULT_PROP_AWB_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_AWB_GAIN_R,
+      g_param_spec_int("awb-gain-r","AWB R-gain","Manual white balance gains",
+        0,255,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_AWB_GAIN_G,
+      g_param_spec_int("awb-gain-g","AWB G-gain","Manual white balance gains",
+        0,255,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+    g_object_class_install_property(gobject_class,PROP_AWB_GAIN_B,
+      g_param_spec_int("awb-gain-b","AWB B-gain","Manual white balance gains",
+        0,255,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_NR_MODE,
+      g_param_spec_enum ("nr-mode", "NR mode", "Noise reduction mode",
+          gst_camerasrc_nr_mode_get_type(), DEFAULT_PROP_NR_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_SCENE_MODE,
+      g_param_spec_enum ("scene-mode", "Scene mode", "Scene mode",
+          gst_camerasrc_scene_mode_get_type(), DEFAULT_PROP_SCENE_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_SENSOR_RESOLUTION,
+      g_param_spec_enum ("sensor-resolution", "Sensor resolution", "Sensor resolution",
+          gst_camerasrc_sensor_resolution_get_type(), DEFAULT_PROP_SENSOR_RESOLUTION, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_FPS,
+      g_param_spec_enum ("fps", "Framerate", "Framerate",
+          gst_camerasrc_fps_get_type(), DEFAULT_PROP_FPS, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_AE_MODE,
+      g_param_spec_enum ("ae-mode", "AE mode", "AE mode",
+          gst_camerasrc_ae_mode_get_type(), DEFAULT_PROP_AE_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_EXPOSURE_EV,
+      g_param_spec_int("ev","Exposure Ev","Exposure Ev",
+          -4,4,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_CCT_RANGE,
+      g_param_spec_string("cct-range","CCT range","CCT range(only valid for manual AWB mode)",
+        DEFAULT_PROP_CCT_RANGE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_WP,
+      g_param_spec_string("wp","White point","White point coordinate(only valid for manual AWB mode)",
+        DEFAULT_PROP_WP, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_AWB_SHIFT_R,
+      g_param_spec_int("awb-shift-r","AWB shift-R","AWB shift-R",
+        0,255,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_AWB_SHIFT_G,
+      g_param_spec_int("awb-shift-g","AWB shift-G","AWB shift-G",
+        0,255,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_AWB_SHIFT_B,
+      g_param_spec_int("awb-shift-b","AWB shift-B","AWB shift-B",
+        0,255,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_AE_REGION,
+      g_param_spec_string("ae-region","AE region","AE region",
+        DEFAULT_PROP_AE_REGION, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_AWB_REGION,
+      g_param_spec_string("awb-region","AWB region","AWB region",
+        DEFAULT_PROP_AWB_REGION, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_ANTIBANDING_MODE,
+      g_param_spec_enum ("antibanding-mode", "Antibanding Mode", "Antibanding Mode",
+          gst_camerasrc_antibanding_mode_get_type(), DEFAULT_PROP_ANTIBANDING_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_OVERALL,
+      g_param_spec_int("overall","Overall","NR level: Overall",
+        0,100,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_SPATIAL,
+      g_param_spec_int("spatial","Spatial","NR level: Spatial",
+        0,100,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_TEMPORAL,
+      g_param_spec_int("temporal","Temporal","NR level: Temporal",
+        0,100,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   gst_element_class_set_static_metadata(gstelement_class,
       "icamerasrc",
@@ -286,16 +726,30 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   /* no need to add anything to init pad*/
   gst_base_src_set_format (GST_BASE_SRC (camerasrc), GST_FORMAT_TIME);
   gst_base_src_set_live (GST_BASE_SRC (camerasrc), TRUE);
-  camerasrc->device_id = -1;
   camerasrc->stream_id = -1;
-  camerasrc->width = DEFAULT_PROP_WIDTH;
-  camerasrc->height = DEFAULT_PROP_HEIGHT;
   camerasrc->number_of_buffers = DEFAULT_PROP_BUFFERCOUNT;
-  camerasrc->pixelformat = V4L2_PIX_FMT_NV12;
-  camerasrc->capture_mode = GST_CAMERASRC_DEINTERLACE_METHOD_NONE;
-  camerasrc->device_name = NULL;
+  camerasrc->capture_mode = DEFAULT_DEINTERLACE_METHOD;
+  camerasrc->device_id = -1;
+  camerasrc->interlace_field = DEFAULT_PROP_INTERLACE_MODE;
+  camerasrc->camera_open = false;
 
-  camerasrc->interlace_mode = false;
+  /* set default value for 3A manual control*/
+  memset(&(camerasrc->man_ctl), 0, sizeof(camerasrc->man_ctl));
+  camerasrc->man_ctl.iris_mode = DEFAULT_PROP_IRIS_MODE;
+  camerasrc->man_ctl.wdr_mode = DEFAULT_PROP_WDR_MODE;
+  camerasrc->man_ctl.blc_area_mode = DEFAULT_PROP_BLC_AREA_MODE;
+  camerasrc->man_ctl.awb_mode = DEFAULT_PROP_AWB_MODE;
+  camerasrc->man_ctl.nr_mode = DEFAULT_PROP_NR_MODE;
+  camerasrc->man_ctl.scene_mode = DEFAULT_PROP_SCENE_MODE;
+  camerasrc->man_ctl.sensor_resolution = DEFAULT_PROP_SENSOR_RESOLUTION;
+  camerasrc->man_ctl.fps = DEFAULT_PROP_FPS;
+  camerasrc->man_ctl.ae_mode = DEFAULT_PROP_AE_MODE;
+  camerasrc->man_ctl.wp = DEFAULT_PROP_WP;
+  camerasrc->man_ctl.ae_region = DEFAULT_PROP_AE_REGION;
+  camerasrc->man_ctl.awb_region = DEFAULT_PROP_AWB_REGION;
+  camerasrc->man_ctl.antibanding_mode = DEFAULT_PROP_ANTIBANDING_MODE;
+
+  camerasrc->param = new Parameters;
   camerasrc->pool = NULL;
   camerasrc->downstream_pool = NULL;
 }
@@ -306,13 +760,21 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
 {
   PERF_CAMERA_ATRACE();
   Gstcamerasrc *src = GST_CAMERASRC (object);
-  const char* devicename;
+  int ret = 0;
+  char *token;
+  gboolean manual_setting = true;
+  camera_awb_gains_t awb_gain;
+  camera_image_enhancement_t img_enhancement;
+
+  camera_range_t cct_range;
+  char cct_range_array[64];
+
+  camera_coordinate_t white_point;
+  char white_point_array[64];
 
   switch (prop_id) {
-    case PROP_SILENT:
-      src->silent = g_value_get_boolean (value);
-      break;
     case PROP_CAPTURE_MODE:
+      manual_setting = false;
       switch (g_value_get_int (value)) {
         case 0:
           src->capture_mode = CAMERASRC_CAPTURE_MODE_STILL;
@@ -329,38 +791,208 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       }
       break;
     case PROP_BUFFERCOUNT:
+      manual_setting = false;
       src->number_of_buffers = g_value_get_int (value);
       break;
-    case PROP_WIDTH:
-      src->width = g_value_get_int (value);
-      break;
-    case PROP_HEIGHT:
-      src->height = g_value_get_int (value);
-      break;
-    case PROP_PIXELFORMAT:
-      src->pixelformat = g_value_get_int (value);
-      break;
     case PROP_PRINT_FPS:
+      manual_setting = false;
       src->print_fps = g_value_get_boolean(value);
       break;
     case PROP_INTERLACE_MODE:
-      src->interlace_mode = g_value_get_boolean (value);
+      manual_setting = false;
+      src->interlace_field = g_value_get_enum (value);
       break;
     case PROP_DEINTERLACE_METHOD:
+      manual_setting = false;
       src->deinterlace_method = g_value_get_enum (value);
       break;
     case PROP_IO_MODE:
+      manual_setting = false;
       src->io_mode = g_value_get_enum (value);
       break;
-    case PROP_CAMERA_NAME:
-      devicename = g_value_get_string (value);
-      src->device_name = new char[strlen(devicename)+1];
-      strncpy(src->device_name, devicename, strlen(devicename)+1);
+    case PROP_DEVICE_ID:
+      manual_setting = false;
+      src->device_id = g_value_get_enum (value);
+      ret   = get_camera_info(src->device_id, src->cam_info);
+      if (ret < 0) {
+          g_print("failed to get device name.\n");
+          return;
+      }
+      break;
+    case PROP_SHARPNESS:
+      src->param->getImageEnhancement(img_enhancement);
+      img_enhancement.sharpness = g_value_get_int (value);
+      src->param->setImageEnhancement(img_enhancement);
+      src->man_ctl.sharpness = img_enhancement.sharpness;
+      break;
+    case PROP_BRIGHTNESS:
+      src->param->getImageEnhancement(img_enhancement);
+      img_enhancement.brightness = g_value_get_int (value);
+      src->param->setImageEnhancement(img_enhancement);
+      src->man_ctl.brightness = img_enhancement.brightness;
+      break;
+    case PROP_CONTRAST:
+      src->param->getImageEnhancement(img_enhancement);
+      img_enhancement.contrast = g_value_get_int (value);
+      src->param->setImageEnhancement(img_enhancement);
+      src->man_ctl.contrast = img_enhancement.contrast;
+      break;
+    case PROP_HUE:
+      src->param->getImageEnhancement(img_enhancement);
+      img_enhancement.hue = g_value_get_int (value);
+      src->param->setImageEnhancement(img_enhancement);
+      src->man_ctl.hue = img_enhancement.hue;
+      break;
+    case PROP_SATURATION:
+      src->param->getImageEnhancement(img_enhancement);
+      img_enhancement.saturation = g_value_get_int (value);
+      src->param->setImageEnhancement(img_enhancement);
+      src->man_ctl.saturation = img_enhancement.saturation;
+      break;
+    case PROP_IRIS_MODE:
+      src->param->setIrisMode((camera_iris_mode_t)g_value_get_enum(value));
+      src->man_ctl.iris_mode = g_value_get_enum (value);
+      break;
+    case PROP_IRIS_LEVEL:
+      src->param->setIrisLevel(g_value_get_int(value));
+      src->man_ctl.iris_level = g_value_get_int (value);
+      break;
+    case PROP_EXPOSURE_TIME:
+      src->param->setExposureTime((int64_t)g_value_get_int (value));
+      src->man_ctl.exposure_time = g_value_get_int (value);
+      break;
+    case PROP_GAIN:
+      src->param->setSensitivityGain((float)g_value_get_int (value));
+      src->man_ctl.gain = g_value_get_int (value);
+      break;
+    case PROP_WDR_MODE:
+      src->param->setWdrMode((camera_wdr_mode_t)g_value_get_enum(value));
+      src->man_ctl.wdr_mode = g_value_get_enum (value);
+      break;
+    case PROP_BLC_AREA_MODE:
+      src->param->setBlcAreaMode((camera_blc_area_mode_t)g_value_get_enum(value));
+      src->man_ctl.blc_area_mode = g_value_get_enum (value);
+      break;
+    case PROP_WDR_LEVEL:
+      src->param->setWdrLevel(g_value_get_int (value));
+      src->man_ctl.wdr_level = g_value_get_int (value);
+      break;
+    case PROP_AWB_MODE:
+      src->param->setAwbMode((camera_awb_mode_t)g_value_get_enum(value));
+      src->man_ctl.awb_mode = g_value_get_enum (value);
+      break;
+    case PROP_AWB_GAIN_R:
+      src->param->getAwbGains(awb_gain);
+      awb_gain.r_gain = g_value_get_int (value);
+      src->param->setAwbGains(awb_gain);
+      src->man_ctl.awb_gain_r = awb_gain.r_gain;
+      break;
+    case PROP_AWB_GAIN_G:
+      src->param->getAwbGains(awb_gain);
+      awb_gain.g_gain = g_value_get_int (value);
+      src->param->setAwbGains(awb_gain);
+      src->man_ctl.awb_gain_g = awb_gain.g_gain;
+      break;
+    case PROP_AWB_GAIN_B:
+      src->param->getAwbGains(awb_gain);
+      awb_gain.b_gain = g_value_get_int (value);
+      src->param->setAwbGains(awb_gain);
+      src->man_ctl.awb_gain_b = awb_gain.b_gain;
+      break;
+    case PROP_NR_MODE:
+      src->param->setNrMode((camera_nr_mode_t)g_value_get_enum(value));
+      src->man_ctl.nr_mode = g_value_get_enum (value);
+      break;
+    case PROP_SCENE_MODE:
+      src->param->setSceneMode((camera_scene_mode_t)g_value_get_enum(value));
+      src->man_ctl.scene_mode = g_value_get_enum (value);
+      break;
+    case PROP_SENSOR_RESOLUTION:
+      //implement this in the future.
+      src->man_ctl.sensor_resolution = g_value_get_enum (value);
+      break;
+    case PROP_FPS:
+      //didn't implement in hal
+      src->man_ctl.fps = g_value_get_enum (value);
+      break;
+    case PROP_AE_MODE:
+      src->param->setAeMode((camera_ae_mode_t)g_value_get_enum(value));
+      src->man_ctl.ae_mode = g_value_get_enum(value);
+      break;
+    case PROP_EXPOSURE_EV:
+      //didn't implement in hal
+      src->man_ctl.exposure_ev = g_value_get_int (value);
+      break;
+    case PROP_CCT_RANGE:
+      src->param->getAwbCctRange(cct_range);
+      src->man_ctl.cct_range = g_value_get_string (value);
+      strncpy(cct_range_array, src->man_ctl.cct_range, 64);
+      token = strtok(cct_range_array,"~");
+      cct_range.min = atoi(token);
+      cct_range.max = atoi(src->man_ctl.cct_range+strlen(token)+1);
+      if (cct_range.min < 1800)
+          cct_range.min = 1800;
+      if (cct_range.max > 15000)
+          cct_range.max = 15000;
+      src->param->setAwbCctRange(cct_range);
+      break;
+    case PROP_WP:
+      src->param->getAwbWhitePoint(white_point);
+      src->man_ctl.wp = g_value_get_string (value);
+      strncpy(white_point_array, src->man_ctl.wp, 64);
+      token = strtok(white_point_array,",");
+      white_point.x = atoi(token);
+      white_point.y = atoi(src->man_ctl.wp+strlen(token)+1);
+      src->param->setAwbWhitePoint(white_point);
+      break;
+    case PROP_AWB_SHIFT_R:
+      src->param->getAwbGainShift(awb_gain);
+      awb_gain.r_gain = g_value_get_int (value);
+      src->param->setAwbGainShift(awb_gain);
+      src->man_ctl.awb_shift_r = awb_gain.r_gain;
+      break;
+    case PROP_AWB_SHIFT_G:
+      src->param->getAwbGainShift(awb_gain);
+      awb_gain.g_gain = g_value_get_int (value);
+      src->param->setAwbGainShift(awb_gain);
+      src->man_ctl.awb_shift_g = awb_gain.g_gain;
+      break;
+    case PROP_AWB_SHIFT_B:
+      src->param->getAwbGainShift(awb_gain);
+      awb_gain.b_gain = g_value_get_int (value);
+      src->param->setAwbGainShift(awb_gain);
+      src->man_ctl.awb_shift_b = awb_gain.b_gain;
+      break;
+    case PROP_AE_REGION:
+      //implement this in the future.
+      src->man_ctl.ae_region = g_value_get_string (value);//need strncpy to store its value
+      break;
+    case PROP_AWB_REGION:
+      //implement this in the future.
+      src->man_ctl.awb_region = g_value_get_string (value);//need strncpy to store its value
+      break;
+    case PROP_ANTIBANDING_MODE:
+      src->param->setAntiBandingMode((camera_antibanding_mode_t)g_value_get_enum(value));
+      src->man_ctl.antibanding_mode = g_value_get_enum (value);
+      break;
+    case PROP_OVERALL:
+      src->man_ctl.overall = g_value_get_int (value);
+      break;
+    case PROP_SPATIAL:
+      src->man_ctl.spatial = g_value_get_int (value);
+      break;
+    case PROP_TEMPORAL:
+      src->man_ctl.temporal = g_value_get_int (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+
+  if (manual_setting && src->camera_open) {
+      camera_set_parameters(src->device_id, *(src->param));
+  }
+
 }
 
 static void
@@ -370,29 +1002,17 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
   Gstcamerasrc *src = GST_CAMERASRC (object);
 
   switch (prop_id) {
-    case PROP_SILENT:
-      g_value_set_boolean (value, src->silent);
-      break;
     case PROP_CAPTURE_MODE:
       g_value_set_int (value, src->capture_mode);
       break;
     case PROP_BUFFERCOUNT:
       g_value_set_int (value, src->number_of_buffers);
       break;
-    case PROP_WIDTH:
-      g_value_set_int (value, src->width);
-      break;
-    case PROP_HEIGHT:
-      g_value_set_int (value, src->height);
-      break;
-    case PROP_PIXELFORMAT:
-      g_value_set_int (value, src->pixelformat);
-      break;
     case PROP_PRINT_FPS:
       g_value_set_boolean(value,src->print_fps);
       break;
     case PROP_INTERLACE_MODE:
-      g_value_set_boolean (value, src->interlace_mode);
+      g_value_set_enum (value, src->interlace_field);
       break;
     case PROP_DEINTERLACE_METHOD:
       g_value_set_enum (value, src->deinterlace_method);
@@ -400,13 +1020,163 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
     case PROP_IO_MODE:
       g_value_set_enum (value, src->io_mode);
       break;
-    case PROP_CAMERA_NAME:
-      g_value_set_string (value, src->device_name);
+    case PROP_DEVICE_ID:
+      g_value_set_enum (value, src->device_id);
+      break;
+    case PROP_SHARPNESS:
+      g_value_set_int (value, src->man_ctl.sharpness);
+      break;
+    case PROP_BRIGHTNESS:
+      g_value_set_int (value, src->man_ctl.brightness);
+      break;
+    case PROP_CONTRAST:
+      g_value_set_int (value, src->man_ctl.contrast);
+      break;
+    case PROP_HUE:
+      g_value_set_int (value, src->man_ctl.hue);
+      break;
+    case PROP_SATURATION:
+      g_value_set_int (value, src->man_ctl.saturation);
+      break;
+    case PROP_IRIS_MODE:
+      g_value_set_enum (value, src->man_ctl.iris_mode);
+      break;
+    case PROP_IRIS_LEVEL:
+      g_value_set_int (value, src->man_ctl.iris_level);
+      break;
+    case PROP_EXPOSURE_TIME:
+      g_value_set_int (value, src->man_ctl.exposure_time);
+      break;
+    case PROP_GAIN:
+      g_value_set_int (value, src->man_ctl.gain);
+      break;
+    case PROP_WDR_MODE:
+      g_value_set_enum (value, src->man_ctl.wdr_mode);
+      break;
+    case PROP_BLC_AREA_MODE:
+      g_value_set_enum (value, src->man_ctl.blc_area_mode);
+      break;
+    case PROP_WDR_LEVEL:
+      g_value_set_int (value, src->man_ctl.wdr_level);
+      break;
+    case PROP_AWB_MODE:
+      g_value_set_enum (value, src->man_ctl.awb_mode);
+      break;
+    case PROP_AWB_GAIN_R:
+      g_value_set_int (value, src->man_ctl.awb_gain_r);
+      break;
+    case PROP_AWB_GAIN_G:
+      g_value_set_int (value, src->man_ctl.awb_gain_g);
+      break;
+    case PROP_AWB_GAIN_B:
+      g_value_set_int (value, src->man_ctl.awb_gain_b);
+      break;
+    case PROP_NR_MODE:
+      g_value_set_enum (value, src->man_ctl.nr_mode);
+      break;
+    case PROP_SCENE_MODE:
+      g_value_set_enum (value, src->man_ctl.scene_mode);
+      break;
+   case PROP_SENSOR_RESOLUTION:
+      g_value_set_enum (value, src->man_ctl.sensor_resolution);
+      break;
+    case PROP_FPS:
+      g_value_set_enum (value, src->man_ctl.fps);
+      break;
+    case PROP_AE_MODE:
+      g_value_set_enum (value, src->man_ctl.ae_mode);
+      break;
+    case PROP_EXPOSURE_EV:
+      g_value_set_int (value, src->man_ctl.exposure_ev);
+      break;
+    case PROP_CCT_RANGE:
+      g_value_set_string (value, src->man_ctl.cct_range);
+      break;
+    case PROP_WP:
+      g_value_set_string (value, src->man_ctl.wp);
+      break;
+    case PROP_AWB_SHIFT_R:
+      g_value_set_int (value, src->man_ctl.awb_shift_r);
+      break;
+    case PROP_AWB_SHIFT_G:
+      g_value_set_int (value, src->man_ctl.awb_shift_g);
+      break;
+    case PROP_AWB_SHIFT_B:
+      g_value_set_int (value, src->man_ctl.awb_shift_b);
+      break;
+    case PROP_AE_REGION:
+      g_value_set_string (value, src->man_ctl.ae_region);
+      break;
+    case PROP_AWB_REGION:
+      g_value_set_string (value, src->man_ctl.awb_region);
+      break;
+    case PROP_ANTIBANDING_MODE:
+      g_value_set_enum (value, src->man_ctl.antibanding_mode);
+      break;
+    case PROP_OVERALL:
+      g_value_set_int (value, src->man_ctl.overall);
+      break;
+    case PROP_SPATIAL:
+      g_value_set_int (value, src->man_ctl.spatial);
+      break;
+    case PROP_TEMPORAL:
+      g_value_set_int (value, src->man_ctl.temporal);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+/**
+  * Find match stream from the support list in cam_info
+  * if not found, return false
+  */
+static gboolean
+gst_camerasrc_find_match_stream(Gstcamerasrc* camerasrc,
+                                int format, int width, int height, int field)
+{
+    stream_array_t configs;
+    int ret = FALSE;
+    camerasrc->cam_info.capability->getSupportedStreamConfig(configs);
+
+    for (unsigned int i = 0; i < configs.size(); i++) {
+        if (width == configs[i].width && height == configs[i].height &&
+            format == configs[i].format && field == configs[i].field) {
+            camerasrc->streams[0] = configs[i];
+            return TRUE;
+        }
+    }
+
+    //return the first one as default
+    GST_ERROR_OBJECT(camerasrc, "failed to find a match resolutions from HAL.");
+    return ret;
+}
+
+/**
+  * Init the HAL and return the camera information in the cam_info for the match device
+  */
+static gboolean
+gst_camerasrc_device_probe(Gstcamerasrc* camerasrc)
+{
+    int ret = camera_hal_init();
+    if (ret < 0) {
+        GST_ERROR_OBJECT(camerasrc, "failed to init libcamhal device.");
+        return FALSE;
+    }
+
+    if (camerasrc->device_id == -1) {
+        GST_DEBUG_OBJECT(camerasrc, "pipeline is running without setting device-name property.");
+        camerasrc->device_id = 0;
+    }
+    ret = get_camera_info(camerasrc->device_id, camerasrc->cam_info);
+    if (ret < 0) {
+        GST_ERROR_OBJECT(camerasrc, "failed to get device name.");
+        camera_hal_deinit();
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 static gboolean
@@ -476,16 +1246,23 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
 
   GST_DEBUG_OBJECT(camerasrc, "format %d width %d height %d", fourcc, info.width, info.height);
 
-  camerasrc->streams[0].format = fourcc;
-  camerasrc->streams[0].width = info.width;
-  camerasrc->streams[0].height = info.height;
-  camerasrc->streams[0].interlaced_video = camerasrc->interlace_mode ? INTERLACED_ENABLED: INTERLACED_DISABLED;
+  int ret = gst_camerasrc_find_match_stream(camerasrc, fourcc,
+                            info.width, info.height, camerasrc->interlace_field);
+
+  if (!ret) {
+    GST_ERROR_OBJECT(camerasrc, "no match stream found from HAL");
+    return ret;
+  }
+
   switch(camerasrc->io_mode) {
     case GST_CAMERASRC_IO_MODE_USERPTR:
       camerasrc->streams[0].memType = V4L2_MEMORY_USERPTR;
       break;
     case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
       camerasrc->streams[0].memType = V4L2_MEMORY_DMABUF;
+      break;
+    case GST_CAMERASRC_IO_MODE_MMAP:
+      camerasrc->streams[0].memType = V4L2_MEMORY_MMAP;
       break;
     default:
       GST_ERROR_OBJECT(camerasrc, "iomode %d is not supported yet.", camerasrc->io_mode);
@@ -544,48 +1321,25 @@ static gboolean gst_camerasrc_start(GstBaseSrc *basesrc)
   gettimeofday(&time_start, NULL);
   gettimeofday(&time_end, NULL);
   int ret;
-  int count;
-  gboolean device_probe = FALSE;
 
-  ret = camera_hal_init();
-
-  if (ret < 0) {
-    GST_ERROR_OBJECT(camerasrc, "failed to init libcamhal device.");
+  if (!gst_camerasrc_device_probe(camerasrc)) {
+    GST_ERROR_OBJECT(camerasrc, "device proble failed ");
     return FALSE;
   }
-  count = get_number_of_cameras();
-  if (camerasrc->device_name != NULL ) {
-    for (int id = 0; id < count; id++) {
-       camera_info_t info;
-       ret = get_camera_info(id, info);
-       if (ret < 0) {
-          GST_ERROR_OBJECT(camerasrc, "failed to get device name.");
-          camera_hal_deinit();
-          return FALSE;
-       }
-
-       if(strcmp(info.name, camerasrc->device_name) == 0) {
-          camerasrc->device_id = id;
-          device_probe = TRUE;
-          break;
-       }
-    }
-
-    if (!device_probe) {
-       g_print("Failed to get correct device name from property:'device-name',please set cameraInput first\n");
-       return FALSE;
-    }
-    delete camerasrc->device_name;
-    camerasrc->device_name = NULL;
-  } else
-    camerasrc->device_id = 0;
 
   ret = camera_device_open(camerasrc->device_id);
   if (ret < 0) {
      GST_ERROR_OBJECT(camerasrc, "incorrect device_id, failed to open libcamhal device.");
+     camerasrc->camera_open = false;
      camera_hal_deinit();
      return FALSE;
+  } else {
+     camerasrc->camera_open = true;
   }
+
+  //set all the params first time.
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+
   return TRUE;
 }
 
@@ -656,6 +1410,7 @@ static gboolean gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query
   GstAllocationParams params;
 
   switch (camerasrc->io_mode) {
+    case GST_CAMERASRC_IO_MODE_MMAP:
     case GST_CAMERASRC_IO_MODE_USERPTR: {
         gboolean update;
 
