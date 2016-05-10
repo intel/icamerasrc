@@ -61,10 +61,11 @@ mkdir -p ${tempdir}/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
 # Used if _RPM_RELEASE is not defined.
 latest_change_id=$(git log --no-merges -n1 | awk -F ':' '/Change-Id:/ {print $2}' | cut -c 37-43)
+latest_commit_id=$(git log -n1 | awk -F ' ' '/commit/ {print $2}' | cut -c 1-7)
 
 # The RPM version and release tags can be overriden from the envrionment
 rpm_version=${_RPM_VERSION:-1.0.0}
-rpm_release=${_RPM_RELEASE:-$(date "+%Y.%m.%d.%H.%M.")${latest_change_id}}
+rpm_release=${_RPM_RELEASE:-$(date "+%Y%m%d%H%M.")${latest_commit_id}}
 
 rpmbuild --define "_buildshell /bin/bash"  \
          --define "_topdir   ${tempdir}/rpmbuild" \

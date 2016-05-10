@@ -59,7 +59,10 @@ G_BEGIN_DECLS
 #define GST_IS_CAMERASRC_BUFFER_POOL(obj)   (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_CAMERASRC_BUFFER_POOL))
 #define GST_CAMERASRC_BUFFER_POOL(obj)      (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_CAMERASRC_BUFFER_POOL, GstCamerasrcBufferPool))
 #define GST_CAMERASRC_BUFFER_POOL_CAST(obj) ((GstCamerasrcBufferPool *)(obj))
-#define FPS_TIME_INTERVAL 2
+#define GST_CAMERASRC_META_GET(buf) ((GstCamerasrcMeta *)gst_buffer_get_meta(buf,gst_camerasrc_meta_api_get_type()))
+#define GST_CAMERASRC_META_ADD(buf) ((GstCamerasrcMeta *)gst_buffer_add_meta(buf,gst_camerasrc_meta_get_info(),NULL))
+
+#define FPS_TIME_INTERVAL 2000000
 #define FPS_BUF_COUNT_START 10
 
 struct _GstCamerasrcBufferPool
@@ -70,22 +73,18 @@ struct _GstCamerasrcBufferPool
   GstAllocationParams params;
 
   Gstcamerasrc *src;
+  GstBuffer **buffers;
 
   gint number_of_buffers;
   gint number_allocated;
   gint acquire_buffer_index;
   gint size;
-
-  GstBuffer **buffers;
 };
 
 struct _GstCamerasrcBufferPoolClass
 {
   GstBufferPoolClass parent_class;
 };
-
-GType gst_camerasrc_meta_api_get_type (void);
-const GstMetaInfo * gst_camerasrc_meta_get_info (void);
 
 struct _GstCamerasrcMeta {
   GstMeta meta;
@@ -95,13 +94,11 @@ struct _GstCamerasrcMeta {
   camera_buffer_t *buffer;
 };
 
-#define GST_CAMERASRC_META_GET(buf) ((GstCamerasrcMeta *)gst_buffer_get_meta(buf,gst_camerasrc_meta_api_get_type()))
-#define GST_CAMERASRC_META_ADD(buf) ((GstCamerasrcMeta *)gst_buffer_add_meta(buf,gst_camerasrc_meta_get_info(),NULL))
-
-
+GType gst_camerasrc_meta_api_get_type (void);
+GType gst_camerasrc_buffer_pool_get_type(void);
+const GstMetaInfo * gst_camerasrc_meta_get_info (void);
 GstBufferPool *gst_camerasrc_buffer_pool_new(Gstcamerasrc *src, GstCaps *caps);
 
-GType gst_camerasrc_buffer_pool_get_type(void);
 G_END_DECLS
 #endif
 

@@ -46,54 +46,64 @@
 #ifndef __GST_CAMERASRC_H__
 #define __GST_CAMERASRC_H__
 #include <sys/types.h>
-
 #include <gst/gst.h>
-
 #include "Parameters.h"
 #include <linux/videodev2.h>
 #include <gst/base/gstpushsrc.h>
 
 G_BEGIN_DECLS
-
-#define DEFAULT_PROP_BUFFERCOUNT 6
-#define DEFAULT_PROP_WIDTH               1920
-#define DEFAULT_PROP_HEIGHT              1080
-#define DEFAULT_PROP_PRINT_FPS false
-#define DEFAULT_DEINTERLACE_METHOD GST_CAMERASRC_DEINTERLACE_METHOD_NONE
-#define MAX_PROP_BUFFERCOUNT 10
-#define MIN_PROP_BUFFERCOUNT 2
-#define DEFAULT_PROP_DEVICE_ID GST_CAMERASRC_DEVICE_ID_0
-#define DEFAULT_PROP_IO_MODE GST_CAMERASRC_IO_MODE_USERPTR
-#define DEFAULT_PROP_INTERLACE_MODE GST_CAMERASRC_INTERLACE_FIELD_ANY
-
 #define ALIGN(val, alignment) (((val)+(alignment)-1) & ~((alignment)-1))
 #define ALIGN_64(val) ALIGN(val, 64)
 
-/*Default enum value of 'iris-mode' property:auto*/
-#define DEFAULT_PROP_IRIS_MODE GST_CAMERASRC_IRIS_MODE_AUTO
-/*Default enum value of 'wdr-mode' property:off*/
-#define DEFAULT_PROP_WDR_MODE GST_CAMERASRC_WDR_MODE_OFF
-/*Default enum value of 'blc-area-mode' property:off*/
-#define DEFAULT_PROP_BLC_AREA_MODE GST_CAMERASRC_BLC_AREA_MODE_OFF
-/*Default enum value of 'cct-range' property:auto*/
-#define DEFAULT_PROP_AWB_MODE GST_CAMERASRC_AWB_MODE_AUTO
-/*Default enum value of 'nr-mode' property:off*/
-#define DEFAULT_PROP_NR_MODE GST_CAMERASRC_NR_MODE_OFF
-/*Default enum value of 'scene-mode' property:auto*/
-#define DEFAULT_PROP_SCENE_MODE GST_CAMERASRC_SCENE_MODE_AUTO
-/*Default enum value of 'sensor-resolution' property:1080p*/
-#define DEFAULT_PROP_SENSOR_RESOLUTION GST_CAMERASRC_SENSOR_RESOLUTION_1080P
-/*Default enum value of 'fps' property:25 fps*/
-#define DEFAULT_PROP_FPS GST_CAMERASRC_FPS_25
+#define DEFAULT_FRAME_WIDTH 1920
+#define DEFAULT_FRAME_HEIGHT 1080
+#define DEFAULT_FRAMERATE 30
 
+/* Default value of int type properties */
+#define DEFAULT_PROP_BUFFERCOUNT 6
+#define MAX_PROP_BUFFERCOUNT 10
+#define MIN_PROP_BUFFERCOUNT 2
+#define DEFAULT_PROP_PRINT_FPS false
+#define DEFAULT_PROP_DEVICE_ID 5
+
+/* Default value of enum type property 'io-mode':userptr */
+#define DEFAULT_PROP_IO_MODE GST_CAMERASRC_IO_MODE_USERPTR
+/* Default value of enum type property 'interlace-mode':any */
+#define DEFAULT_PROP_INTERLACE_MODE GST_CAMERASRC_INTERLACE_FIELD_ANY
+/* Default value of enum type property 'deinterlace-method':none */
+#define DEFAULT_DEINTERLACE_METHOD GST_CAMERASRC_DEINTERLACE_METHOD_NONE
+/* Default value of enum type property 'iris-mode':auto */
+#define DEFAULT_PROP_IRIS_MODE GST_CAMERASRC_IRIS_MODE_AUTO
+/* Default value of enum type property 'wdr-mode':off */
+#define DEFAULT_PROP_WDR_MODE GST_CAMERASRC_WDR_MODE_OFF
+/* Default value of enum type property 'blc-area-mode':off */
+#define DEFAULT_PROP_BLC_AREA_MODE GST_CAMERASRC_BLC_AREA_MODE_OFF
+/* Default value of enum type property 'awb-mode':auto */
+#define DEFAULT_PROP_AWB_MODE GST_CAMERASRC_AWB_MODE_AUTO
+/* Default value of enum type property 'nr-mode':off */
+#define DEFAULT_PROP_NR_MODE GST_CAMERASRC_NR_MODE_OFF
+/* Default value of enum type property 'scene-mode':auto */
+#define DEFAULT_PROP_SCENE_MODE GST_CAMERASRC_SCENE_MODE_AUTO
+/* Default value of enum type property 'sensor-resolution':1080p */
+#define DEFAULT_PROP_SENSOR_RESOLUTION GST_CAMERASRC_SENSOR_RESOLUTION_1080P
+/* Default value of enum type property 'fps':25 fps */
+#define DEFAULT_PROP_FPS GST_CAMERASRC_FPS_25
+/* Default value of enum type property 'ae-mode':auto */
 #define DEFAULT_PROP_AE_MODE GST_CAMERASRC_AE_MODE_AUTO
+/* Default value of enum type property 'ae-converge-speed':normal */
+#define DEFAULT_PROP_AE_CONVERGE_SPEED GST_CAMERASRC_AE_CONVERGE_SPEED_NORMAL
+/* Default value of enum type property 'antibanding':auto*/
+#define DEFAULT_PROP_ANTIBANDING_MODE GST_CAMERASRC_ANTIBANDING_MODE_AUTO
+
+/* Default value of string type properties */
 #define DEFAULT_PROP_WP NULL
 #define DEFAULT_PROP_AE_REGION NULL
 #define DEFAULT_PROP_AWB_REGION NULL
 #define DEFAULT_PROP_CCT_RANGE NULL
-#define DEFAULT_PROP_ANTIBANDING_MODE GST_CAMERASRC_ANTIBANDING_MODE_AUTO
+#define DEFAULT_PROP_COLOR_TRANSFORM NULL
 
-enum{
+enum
+{
     CAMERASRC_CAPTURE_MODE_STILL = 0,
     CAMERASRC_CAPTURE_MODE_VIDEO = 1,
     CAMERASRC_CAPTURE_MODE_PREVIEW = 2,
@@ -116,23 +126,10 @@ typedef enum
 
 typedef enum
 {
-  GST_CAMERASRC_DEVICE_ID_0 = 0,
-  GST_CAMERASRC_DEVICE_ID_1 = 1,
-  GST_CAMERASRC_DEVICE_ID_2 = 2,
-  GST_CAMERASRC_DEVICE_ID_3 = 3,
-  GST_CAMERASRC_DEVICE_ID_4 = 4,
-  GST_CAMERASRC_DEVICE_ID_5 = 5,
-  GST_CAMERASRC_DEVICE_ID_6 = 6,
-  GST_CAMERASRC_DEVICE_ID_7 = 7,
-} GstCamerasrcDeviceName;
-
-typedef enum
-{
   GST_CAMERASRC_INTERLACE_FIELD_ANY = V4L2_FIELD_ANY,
   GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE = V4L2_FIELD_ALTERNATE,
 } GstCamerasrcInterlaceField;
 
-/*iris-mode enum struct*/
 typedef enum
 {
   GST_CAMERASRC_IRIS_MODE_AUTO = 0,
@@ -140,7 +137,6 @@ typedef enum
   GST_CAMERASRC_IRIS_MODE_CUSTOMIZED = 2,
 } GstCamerasrcIrisMode;
 
-/*wdr-mode enum struct*/
 typedef enum
 {
   GST_CAMERASRC_WDR_MODE_OFF = 0,
@@ -148,14 +144,12 @@ typedef enum
   GST_CAMERASRC_WDR_MODE_AUTO = 2,
 } GstCamerasrcWdrMode;
 
-/*blc-area-mode enum struct*/
 typedef enum
 {
   GST_CAMERASRC_BLC_AREA_MODE_OFF = 0,
   GST_CAMERASRC_BLC_AREA_MODE_ON = 1,
 } GstCamerasrcBlcAreaMode;
 
-/*cct-range enum struct*/
 typedef enum
 {
   GST_CAMERASRC_AWB_MODE_AUTO = 0,
@@ -169,9 +163,9 @@ typedef enum
   GST_CAMERASRC_AWB_MODE_CCT_RANGE = 8,
   GST_CAMERASRC_AWB_MODE_WHITE_POINT = 9,
   GST_CAMERASRC_AWB_MODE_MANUAL_GAIN = 10,
+  GST_CAMERASRC_AWB_MODE_COLOR_TRANSFORM = 11,
 } GstCamerasrcAwbMode;
 
-/*nr-mode enum struct*/
 typedef enum
 {
   GST_CAMERASRC_NR_MODE_OFF = 0,
@@ -180,7 +174,6 @@ typedef enum
   GST_CAMERASRC_NR_MODE_EXPERT = 3,
 } GstCamerasrcNrMode;
 
-/*scene-mode enum struct*/
 typedef enum
 {
   GST_CAMERASRC_SCENE_MODE_AUTO = 0,
@@ -189,7 +182,6 @@ typedef enum
   GST_CAMERASRC_SCENE_MODE_DISABLED = 3,
 } GstCamerasrcSceneMode;
 
-/*sensor-resolution enum struct*/
 typedef enum
 {
   GST_CAMERASRC_SENSOR_RESOLUTION_1080P = 0,
@@ -197,7 +189,6 @@ typedef enum
   GST_CAMERASRC_SENSOR_RESOLUTION_4K = 2,
 } GstCanerasrcSensorResolution;
 
-/*fps enum struct*/
 typedef enum
 {
   GST_CAMERASRC_FPS_25 = 0,
@@ -211,6 +202,13 @@ typedef enum
   GST_CAMERASRC_AE_MODE_AUTO = 0,
   GST_CAMERASRC_AE_MODE_MANUAL = 1,
 } GstCamerasrcAeMode;
+
+typedef enum
+{
+  GST_CAMERASRC_AE_CONVERGE_SPEED_NORMAL = 0,
+  GST_CAMERASRC_AE_CONVERGE_SPEED_MID = 1,
+  GST_CAMERASRC_AE_CONVERGE_SPEED_LOW = 2,
+} GstCamerasrcAeConvergeSpeed;
 
 typedef enum
 {
@@ -236,6 +234,7 @@ typedef struct _GstcamerasrcClass GstcamerasrcClass;
 typedef struct _GstFpsDebug GstFpsDebug;
 typedef struct _Gst3AManualControl Gst3AManualControl;
 
+/* Used to update fps*/
 struct _GstFpsDebug
 {
   struct timeval dqbuf_start_tm_count,dqbuf_tm_start,qbuf_tm_end;
@@ -261,36 +260,38 @@ struct _Gst3AManualControl
   int iris_mode;
   guint iris_level;
   guint exposure_time;
+  guint exposure_ev;
   guint gain;
+  int ae_mode;
+  char ae_region[128];
+  int ae_converge_speed;
   /* Backlight Settings*/
   int wdr_mode;
   int blc_area_mode;
   guint wdr_level;
   /* White Balance*/
   int awb_mode;
+  char awb_region[128];
+  const char *cct_range;
+  const char *wp;
+  char color_transform[64];
+  guint awb_shift_r;
+  guint awb_shift_g;
+  guint awb_shift_b;
   guint awb_gain_r;
   guint awb_gain_g;
   guint awb_gain_b;
   /* Noise Reduction*/
   int nr_mode;
+  guint overall;
+  guint spatial;
+  guint temporal;
   /* Video Adjustment*/
   int scene_mode;
   int sensor_resolution;
   int fps;
 
-  int ae_mode;
-  guint exposure_ev;
-  const char *cct_range;
-  const char *wp;
-  guint awb_shift_r;
-  guint awb_shift_g;
-  guint awb_shift_b;
-  const char *ae_region;
-  const char *awb_region;
   int antibanding_mode;
-  guint overall;
-  guint spatial;
-  guint temporal;
 };
 
 using namespace icamera;
@@ -301,40 +302,44 @@ struct _Gstcamerasrc
   GstPad *srcpad, *sinkpad;
 
   GstBufferPool *pool;
-
   /* This is used for down stream plugin buffer pool, in
    * dma-import mode, icamerasrc will get the down stream
    * buffer pool to allocate buffers */
   GstBufferPool *downstream_pool;
-  guint64 offset;
-  GstCaps *probed_caps;
-  GstClockTime ctrl_time;
 
-  int device_id;//enum index of device
+  /* Buffer configuration*/
+  guint64 offset;
   int stream_id;
+  int interlace_field;
+  guint bpl;
+  guint number_of_buffers;
+  GstVideoInfo info;
   stream_config_t  stream_list;
   stream_t      streams[1]; //FIXME: Support only one stream now.
   camera_info_t cam_info;
 
-  int interlace_field;
+  /*non-3A properties*/
+  int device_id;
   int deinterlace_method;
   int io_mode;
-  guint number_of_buffers;
-  guint bpl; //byte_per_line.
   guint capture_mode;
   guint print_fps;
   GstFpsDebug fps_debug;
-  Gst3AManualControl man_ctl;
-  GstVideoInfo info;
-  Parameters *param;
+
+  /*3A properties */
   gboolean camera_open;
+  Parameters *param;
+  Gst3AManualControl man_ctl;
+
+  /* Calculate Gstbuffer timestamp*/
+  uint64_t time_end;
+  uint64_t time_start;
 };
 
 struct _GstcamerasrcClass
 {
   GstPushSrcClass parent_class;
 };
-
 
 GType gst_camerasrc_get_type (void);
 

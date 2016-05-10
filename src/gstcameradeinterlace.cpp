@@ -69,7 +69,8 @@ using namespace icamera;
 GST_DEBUG_CATEGORY_EXTERN(gst_camerasrc_debug);
 #define GST_CAT_DEFAULT gst_camerasrc_debug
 
-static int gst_camerasrc_deinterlace_sw_bob(Gstcamerasrc *camerasrc, camera_buffer_t *buffer)
+static int
+gst_camerasrc_deinterlace_sw_bob(Gstcamerasrc *camerasrc, camera_buffer_t *buffer)
 {
   PERF_CAMERA_ATRACE();
   char *addr = (char *)buffer->addr;

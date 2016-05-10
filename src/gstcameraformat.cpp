@@ -71,7 +71,8 @@ typedef struct
   gboolean dimensions;
 } cameraSrcFormatDesc;
 
-static GstStructure * gst_camerasrc_format_to_structure (guint32 fourcc)
+static GstStructure *
+gst_camerasrc_format_to_structure (guint32 fourcc)
 {
   PERF_CAMERA_ATRACE();
   GstStructure *structure = NULL;
@@ -118,6 +119,39 @@ static GstStructure * gst_camerasrc_format_to_structure (guint32 fourcc)
   return structure;
 }
 
+/**
+  * Read all supported formats, width, height from Camera info
+  * if no availble formats, return -1
+  */
+int get_format_and_resolution(const camera_info_t info, stream_array_t &configs, int &numberOfFormat, int *formats, camera_resolution_t *tmp_res)
+{
+    PERF_CAMERA_ATRACE();
+
+    int previousFormat = -1;
+    info.capability->getSupportedStreamConfig(configs);
+
+    for (size_t j = 0; j < configs.size(); j++) {
+      // Find all non-interlaced format
+      if (configs[j].field == GST_CAMERASRC_INTERLACE_FIELD_ANY
+            && configs[j].format != previousFormat) {
+        formats[numberOfFormat] = configs[j].format;
+        numberOfFormat++;
+        previousFormat = configs[j].format;
+      }
+      tmp_res[j].width = configs[j].width;
+      tmp_res[j].height = configs[j].height;
+    }
+
+    if (previousFormat == -1 || numberOfFormat == 0)
+        return -1;
+    else
+        return 0;
+}
+
+/**
+  * Parse all supported resolutions, set values of max width/height and min width/height
+  * from all supported resolutions, used to generate width/height range
+  */
 void get_max_and_min_resolution(camera_resolution_t *r, int r_count, int *max_w, int *max_h, int *min_w, int *min_h)
 {
   PERF_CAMERA_ATRACE();
@@ -148,73 +182,63 @@ void get_max_and_min_resolution(camera_resolution_t *r, int r_count, int *max_w,
 GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
 {
   PERF_CAMERA_ATRACE();
+
   static GstCaps *caps = NULL;
+  GstStructure *structure;
 
-  if (caps == NULL) {
-    GstStructure *structure;
-    int count;
+  int formats[20];
+  camera_resolution_t tmp_res[20];
+  int ret = 0;
+  int count;
 
-    caps = gst_caps_new_empty ();
-    count = get_number_of_cameras();
+  caps = gst_caps_new_empty ();
+  count = get_number_of_cameras();
 
-    for(int i = 0; i < count; i++) {
-      int max_w, max_h, min_w, min_h;
+  for(int i = 0; i < count; i++) {
+    stream_array_t configs;
+    camera_info_t info;
+    int max_w, max_h, min_w, min_h;
+    int numberOfFormat = 0;
 
-      camera_info_t info;
-      int ret = get_camera_info(i, info);
-      if (ret != 0) {
-        GST_ERROR_OBJECT(camerasrc_class, "failed to get_camera_info from libcamhal %d\n", ret);
-        gst_caps_unref(caps);
-        return NULL;
-      }
-
-      stream_array_t configs;
-      int numberOfFormat = 0;
-      int previousFormat = -1;
-      int formats[20];
-      info.capability->getSupportedStreamConfig(configs);
-      // TODO the implementation below should be optimized
-      for (size_t j = 0; j < configs.size(); j++) {
-          // Find all non-interlaced format
-          if (configs[j].field == GST_CAMERASRC_INTERLACE_FIELD_ANY
-                  && configs[j].format != previousFormat) {
-              formats[numberOfFormat] = configs[j].format;
-              numberOfFormat++;
-              previousFormat = configs[j].format;
-          }
-      }
-      if (previousFormat == -1 || numberOfFormat == 0) {
-        GST_ERROR_OBJECT(camerasrc_class, "failed to get format info from libcamhal %d\n", ret);
-      }
-      camera_resolution_t tmp_res[20];
-      for (size_t j = 0; j < configs.size(); j++) {
-        tmp_res[j].width = configs[j].width;
-        tmp_res[j].height = configs[j].height;
-      }
-      get_max_and_min_resolution(tmp_res, configs.size(), &max_w, &max_h, &min_w, &min_h);
-
-      for (int j = 0; j < numberOfFormat; j++) {
-        structure = gst_camerasrc_format_to_structure (formats[j]);
-        if (structure) {
-          if ( max_w == min_w && max_h == min_h )
-            gst_structure_set (structure,
-              "width", GST_TYPE_INT_RANGE, min_w-1, max_w,
-              "height", GST_TYPE_INT_RANGE, min_h-1, max_h,
-              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
-              "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-              (void *)NULL);
-          else
-            gst_structure_set (structure,
-              "width", GST_TYPE_INT_RANGE, min_w, max_w,
-              "height", GST_TYPE_INT_RANGE, min_h, max_h,
-              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
-              "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-              (void *)NULL);
-        }
-        caps = gst_caps_merge_structure (caps, structure);
-      }
+    ret = get_camera_info(i, info);
+    if (ret != 0) {
+      GST_ERROR_OBJECT(camerasrc_class, "failed to get_camera_info from libcamhal %d\n", ret);
+      gst_caps_unref(caps);
+      return NULL;
     }
 
+    ret = get_format_and_resolution(info, configs, numberOfFormat, formats, tmp_res);
+    if (ret != 0) {
+        GST_ERROR_OBJECT(camerasrc_class, "failed to get format info from libcamhal %d\n", ret);
+        gst_caps_unref(caps);
+        return NULL;
+    }
+
+    get_max_and_min_resolution(tmp_res, configs.size(), &max_w, &max_h, &min_w, &min_h);
+
+    /* Merge resolutions */
+    for (int j = 0; j < numberOfFormat; j++) {
+      structure = gst_camerasrc_format_to_structure (formats[j]);
+      if (structure) {
+        if ( max_w == min_w && max_h == min_h )
+          gst_structure_set (structure,
+            "width", GST_TYPE_INT_RANGE, min_w-1, max_w,
+            "height", GST_TYPE_INT_RANGE, min_h-1, max_h,
+            "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
+            "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+            (void *)NULL);
+        else
+          gst_structure_set (structure,
+            "width", GST_TYPE_INT_RANGE, min_w, max_w,
+            "height", GST_TYPE_INT_RANGE, min_h, max_h,
+            "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
+            "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+            (void *)NULL);
+      }
+      caps = gst_caps_merge_structure (caps, structure);
+    }
+    memset(formats, 0, sizeof(formats));
+    memset(tmp_res, 0, sizeof(tmp_res));
   }
 
   return caps;
