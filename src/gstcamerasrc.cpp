@@ -974,6 +974,9 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
   camera_range_t cct_range;
   camera_coordinate_t white_point;
 
+  memset(&img_enhancement, 0, sizeof(camera_image_enhancement_t));
+  memset(&awb_gain, 0, sizeof(camera_awb_gains_t));
+
   switch (prop_id) {
     case PROP_CAPTURE_MODE:
       manual_setting = false;

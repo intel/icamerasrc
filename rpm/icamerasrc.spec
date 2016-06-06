@@ -47,7 +47,7 @@ Version: %{version}
 Release: %{release}
 License: LGPL
 Group: Development/Tools
-Prefix: /usr/lib64/gstreamer-1.0
+Prefix: /usr/lib/gstreamer-1.0
 BuildRoot: %(mktemp -ud %{_builddir}/%{name}-%{version}-%{release}-XXXXXX)
 %description
 Linux camera src.
@@ -57,9 +57,9 @@ Linux camera src.
 
 %install
 rm -rf %{buildroot}
-mkdir -p %{buildroot}/usr/lib64/gstreamer-1.0
-cp -v %{_srcdir}/src/.libs/*.so* %{buildroot}/usr/lib64/gstreamer-1.0
-cp -v %{_srcdir}/src/.libs/*.la  %{buildroot}/usr/lib64/gstreamer-1.0
+mkdir -p %{buildroot}/usr/lib/gstreamer-1.0
+cp -v %{_srcdir}/src/.libs/*.so* %{buildroot}/usr/lib/gstreamer-1.0
+cp -v %{_srcdir}/src/.libs/*.la  %{buildroot}/usr/lib/gstreamer-1.0
 
 %files
-/usr/lib64/gstreamer-1.0/
+/usr/lib/gstreamer-1.0
