@@ -121,6 +121,7 @@ static void
 gst_camerasrc_buffer_pool_finalize (GObject * object)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -133,24 +134,26 @@ static void
 gst_camerasrc_buffer_pool_class_init(GstCamerasrcBufferPoolClass *klass)
 {
   PERF_CAMERA_ATRACE();
-   GObjectClass *object_class = G_OBJECT_CLASS (klass);
-   GstBufferPoolClass *bufferpool_class = GST_BUFFER_POOL_CLASS (klass);
+  GST_INFO("@%s\n",__func__);
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
+  GstBufferPoolClass *bufferpool_class = GST_BUFFER_POOL_CLASS (klass);
 
-   object_class->finalize = gst_camerasrc_buffer_pool_finalize;
+  object_class->finalize = gst_camerasrc_buffer_pool_finalize;
 
-   bufferpool_class->start = gst_camerasrc_buffer_pool_start;
-   bufferpool_class->stop = gst_camerasrc_buffer_pool_stop;
-   bufferpool_class->set_config = gst_camerasrc_buffer_pool_set_config;
-   bufferpool_class->alloc_buffer = gst_camerasrc_buffer_pool_alloc_buffer;
-   bufferpool_class->acquire_buffer = gst_camerasrc_buffer_pool_acquire_buffer;
-   bufferpool_class->release_buffer = gst_camerasrc_buffer_pool_release_buffer;
-   bufferpool_class->free_buffer = gst_camerasrc_buffer_pool_free_buffer;
+  bufferpool_class->start = gst_camerasrc_buffer_pool_start;
+  bufferpool_class->stop = gst_camerasrc_buffer_pool_stop;
+  bufferpool_class->set_config = gst_camerasrc_buffer_pool_set_config;
+  bufferpool_class->alloc_buffer = gst_camerasrc_buffer_pool_alloc_buffer;
+  bufferpool_class->acquire_buffer = gst_camerasrc_buffer_pool_acquire_buffer;
+  bufferpool_class->release_buffer = gst_camerasrc_buffer_pool_release_buffer;
+  bufferpool_class->free_buffer = gst_camerasrc_buffer_pool_free_buffer;
 }
 
 static gboolean
 gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL(bpool);
   Gstcamerasrc *camerasrc = pool->src;
   GstAllocator *allocator;
@@ -190,6 +193,7 @@ static gboolean
 gst_camerasrc_buffer_pool_start (GstBufferPool * bpool)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL(bpool);
   Gstcamerasrc *camerasrc = pool->src;
 
@@ -229,6 +233,7 @@ static gboolean
 gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL(bpool);
   Gstcamerasrc *camerasrc = pool->src;
 
@@ -321,6 +326,7 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
     GstBufferPoolAcquireParams * params)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL(bpool);
   Gstcamerasrc *camerasrc = pool->src;
   GstBuffer *alloc_buffer = NULL;
@@ -422,6 +428,7 @@ static void
 gst_camerasrc_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL (bpool);
   Gstcamerasrc *camerasrc = pool->src;
   GstCamerasrcMeta *meta;
@@ -492,6 +499,7 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
     GstBufferPoolAcquireParams * params)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL(bpool);
   Gstcamerasrc *camerasrc = pool->src;
   GstBuffer *gbuffer;
@@ -524,6 +532,9 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
   } else if ((meta->buffer->s.field == V4L2_FIELD_TOP) || (meta->buffer->s.field == V4L2_FIELD_BOTTOM)) {
       if (meta->buffer->s.field == V4L2_FIELD_TOP)
           GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
+      else
+          GST_BUFFER_FLAG_UNSET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
+
       GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
       GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_ONEFIELD);
   }
@@ -545,6 +556,7 @@ static void
 gst_camerasrc_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstCamerasrcMeta *meta;
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL (bpool);
   Gstcamerasrc *camerasrc = pool->src;
@@ -564,70 +576,14 @@ gst_camerasrc_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buf
   }
 }
 
-#if 0
-static GstFlowReturn
-gst_camerasrc_buffer_pool_qbuf (GstCamerasrcBufferPool * pool, GstBuffer * buf)
-{
-   return GST_FLOW_OK;
-
-}
-
-static GstFlowReturn gst_camerasrc_buffer_pool_dqbuf(GstCamerasrcBufferPool *pool,GstBuffer *buf)
-{
-   return GST_FLOW_OK;
-}
-#endif
-
-static int
-gst_camerasrc_get_bpl(int format, int width)
-{
-  int bpp, bpl = 0;
-
-  switch(format) {
-    case V4L2_PIX_FMT_SRGGB8: //packed RGB, 8bpp, R,G,G,B
-    case V4L2_PIX_FMT_SGRBG8: //packed RGB, 8bpp, G,R,B,G
-    case V4L2_PIX_FMT_SGBRG8: //packed RGB, 8bpp, G,B,R,G
-    case V4L2_PIX_FMT_SBGGR8: //packed RGB, 8bpp, B,G,G,R
-      bpp = 8;
-      break;
-    case V4L2_PIX_FMT_NV12: //planar YUV 4:2:0, 12bpp, 1 plane for Y and 1 plane for the UV
-    case V4L2_PIX_FMT_NV21:
-    case V4L2_PIX_FMT_YUV420:
-    case V4L2_PIX_FMT_YVU420:
-      bpp = 12;
-      break;
-    case V4L2_PIX_FMT_SRGGB10:
-    case V4L2_PIX_FMT_SGRBG10:
-    case V4L2_PIX_FMT_SGBRG10:
-    case V4L2_PIX_FMT_SBGGR10:
-    case V4L2_PIX_FMT_YUYV: //packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr
-    case V4L2_PIX_FMT_UYVY: //packed YUV 4:2:2, 16bpp, Cb Y0 Cr Y1
-    case V4L2_PIX_FMT_RGB565:
-    case V4L2_PIX_FMT_SRGGB12:
-      bpp = 16;
-      break;
-    case V4L2_PIX_FMT_BGR24:
-      bpp = 24;
-      break;
-    case V4L2_PIX_FMT_XRGB32: //internal RGB565.
-    case V4L2_PIX_FMT_XBGR32: //internal RGB8888
-      bpp = 32;
-      break;
-    default:
-      bpp = 16;
-      break;
-  }
-
-  bpl = ALIGN_64(width * (bpp/8));
-  return bpl;
-}
-
 GstBufferPool *
 gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc, GstCaps *caps)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstCamerasrcBufferPool *pool;
   GstStructure *s;
+  int bpp = 0;
 
   pool = (GstCamerasrcBufferPool *) g_object_new (GST_TYPE_CAMERASRC_BUFFER_POOL, NULL);
 
@@ -637,7 +593,8 @@ gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc, GstCaps *caps)
     camerasrc->streams[0].size *= 2;
   }
 
-  camerasrc->bpl = gst_camerasrc_get_bpl(camerasrc->streams[0].format, camerasrc->streams[0].width);
+  get_frame_size(camerasrc->streams[0].format, camerasrc->streams[0].width, camerasrc->streams[0].height, camerasrc->streams[0].field, &bpp);
+  camerasrc->bpl = ALIGN_64(camerasrc->streams[0].width * (bpp/8));
   pool->src = camerasrc;
   camerasrc->pool = GST_BUFFER_POOL(pool);
 

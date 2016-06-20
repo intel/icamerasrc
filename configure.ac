@@ -71,19 +71,54 @@ AC_CHECK_PROG(HAVE_PKGCONFIG, pkg-config, [ ], [
   AC_MSG_ERROR([You need to have pkg-config installed!])
 ])
 
-AC_LANG_PUSH([C++])
-# Checks for headers
-CPPFLAGS="$CPPFLAGS -I$SDKTARGETSYSROOT/usr/include/libcamhal/api -I$SDKTARGETSYSROOT/usr/include/libcamhal -I$SDKTARGETSYSROOT/usr/include/libcamhal/utils"
-AC_CHECK_HEADER([ICamera.h], , [
-  AC_MSG_ERROR([You need to install libcamhal for the missed header files])
-])
+dnl conditionals to support bitbake builds
+AC_ARG_WITH([headercheck],
+  [AS_HELP_STRING([--with-headercheck], [check that headers exist] @@)],
+  [],
+  [with_headercheck=yes])
 
-# Checks for libraries
-LDFLAGS="$LDFLAGS -L/usr/lib64 -L/usr/lib"
-AC_CHECK_LIB([camhal], [_init], [], [
-  # Lib symbol check may not accurate when non PIC, so it is a warning
-  AC_MSG_WARN([You need to install libcamhal for the missed libraries])
-])
+AC_ARG_WITH([libcheck],
+  [AS_HELP_STRING([--with-libcheck], [check that hal lib exists] @@)],
+  [],
+  [with_libcheck=yes])
+
+AC_ARG_WITH([camera3hal],
+  [AS_HELP_STRING([--with-camera3hal], [use camera3hal for linking] @@)],
+  [],
+  [with_camera3hal=no])
+
+AC_LANG_PUSH([C++])
+# Checks for headers - these don't work with bitbake so can be disabled
+AS_IF([test "x$with_headercheck" == xyes],
+  [
+    CPPFLAGS="$CPPFLAGS -I$SDKTARGETSYSROOT/usr/include/libcamhal/api -I$SDKTARGETSYSROOT/usr/include/libcamhal -I$SDKTARGETSYSROOT/usr/include/libcamhal/utils"
+    AC_CHECK_HEADER([ICamera.h], , [
+      AC_MSG_ERROR([You need to install libcamhal for the missed header files])
+    ])
+  ], [])
+
+# HAL library selection
+AS_IF([test "x$with_camera3hal" == xyes],
+  [
+    PKG_CHECK_MODULES([LIBANDROID_STUBS], [libandroid_stubs])
+    AC_SUBST([HAL_LIB], [-lcamerahal])
+    AC_SUBST([DEFAULT_PROP_DEVICE_ID], [0])
+  ],
+  [
+    AC_SUBST([HAL_LIB], [-lcamhal])
+    AC_SUBST([DEFAULT_PROP_DEVICE_ID], [5])
+  ])
+
+# Checks for libraries - these paths don't work with bitbake, so can be disabled
+AS_IF([test "x$with_libcheck" == xyes],
+  [
+    LDFLAGS="$LDFLAGS -L/usr/lib64 -L/usr/lib"
+    AC_CHECK_LIB([camhal], [_init], [], [
+    # Lib symbol check may not accurate when non PIC, so it is a warning
+    AC_MSG_WARN([You need to install libcamhal for the missed libraries])
+    ])
+  ], [])
+
 AC_LANG_POP([C++])
 
 dnl Check for the required version of GStreamer core (and gst-plugins-base)

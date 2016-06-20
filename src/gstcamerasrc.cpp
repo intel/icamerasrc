@@ -551,6 +551,7 @@ static void
 gst_camerasrc_class_init (GstcamerasrcClass * klass)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseSrcClass *basesrc_class;
@@ -768,6 +769,7 @@ static void
 gst_camerasrc_init (Gstcamerasrc * camerasrc)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
 
   camerasrc->pool = NULL;
   camerasrc->downstream_pool = NULL;
@@ -1489,6 +1491,7 @@ static gboolean
 gst_camerasrc_set_caps(GstBaseSrc *src, GstCaps *caps)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   Gstcamerasrc *camerasrc;
   int ret;
 
@@ -1522,6 +1525,7 @@ static GstCaps *
 gst_camerasrc_get_caps(GstBaseSrc *src,GstCaps *filter)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   return gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (GST_CAMERASRC(src)));
 }
 
@@ -1529,6 +1533,7 @@ static gboolean
 gst_camerasrc_start(GstBaseSrc *basesrc)
 {
   Gstcamerasrc *camerasrc;
+  GST_INFO("@%s\n",__func__);
   camerasrc = GST_CAMERASRC (basesrc);
   int ret;
 
@@ -1556,6 +1561,8 @@ gst_camerasrc_start(GstBaseSrc *basesrc)
 static gboolean
 gst_camerasrc_stop(GstBaseSrc *basesrc)
 {
+  PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   return TRUE;
 }
 
@@ -1563,6 +1570,7 @@ static GstStateChangeReturn
 gst_camerasrc_change_state (GstElement * element, GstStateChange transition)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 }
 
@@ -1570,6 +1578,7 @@ static GstCaps *
 gst_camerasrc_fixate(GstBaseSrc * basesrc, GstCaps * caps)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstStructure *structure;
   GST_DEBUG_OBJECT (basesrc, "fixated caps %" GST_PTR_FORMAT, caps);
 
@@ -1590,6 +1599,7 @@ static gboolean
 gst_camerasrc_query(GstBaseSrc * bsrc, GstQuery * query )
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   gboolean res;
   res = GST_BASE_SRC_CLASS (parent_class)->query (bsrc, query);
 
@@ -1608,6 +1618,7 @@ static gboolean
 gst_camerasrc_negotiate(GstBaseSrc *basesrc)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   return GST_BASE_SRC_CLASS (parent_class)->negotiate (basesrc);
 }
 
@@ -1615,6 +1626,7 @@ static gboolean
 gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query)
 {
   PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   Gstcamerasrc * camerasrc = GST_CAMERASRC(bsrc);
   GstStructure *config;
   GstCaps *caps;
@@ -1686,6 +1698,8 @@ gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query)
 static GstFlowReturn
 gst_camerasrc_fill(GstPushSrc *src, GstBuffer *buf)
 {
+  PERF_CAMERA_ATRACE();
+  GST_INFO("@%s\n",__func__);
   GstClock *clock;
   GstClockTime delay;
   GstClockTime abs_time, base_time, timestamp, duration;

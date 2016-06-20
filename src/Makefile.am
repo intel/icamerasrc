@@ -61,11 +61,17 @@ plugin_LTLIBRARIES = libgsticamerasrc.la
 libgsticamerasrc_la_SOURCES = gstcamerasrc.cpp gstcamerasrc.h gstcameraformat.cpp gstcameraformat.h gstcamerasrcbufferpool.cpp gstcamerasrcbufferpool.h gstcameradeinterlace.cpp gstcameradeinterlace.h
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
-libgsticamerasrc_la_CPPFLAGS = $(GST_CFLAGS) -Werror
+libgsticamerasrc_la_CPPFLAGS = \
+    $(GST_CFLAGS) \
+    -std=c++11 \
+    -Werror \
+    $(LIBANDROID_STUBS_CFLAGS) \
+    -DDEFAULT_PROP_DEVICE_ID=$(DEFAULT_PROP_DEVICE_ID)
+
 libgsticamerasrc_la_LIBADD = $(GST_LIBS) \
     -lgstallocators-$(GST_API_VERSION) \
     -lgstvideo-$(GST_API_VERSION) \
-    -lcamhal
+    $(HAL_LIB)
 
 libgsticamerasrc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 libgsticamerasrc_la_LIBTOOLFLAGS = --tag=disable-static

@@ -41,7 +41,6 @@
  * Boston, MA 02111-1307, USA.
  */
 
-
 #define LOG_TAG "GstCameraFormat"
 
 #ifdef HAVE_CONFIG_H
@@ -53,6 +52,7 @@
 #include <gst/gst.h>
 #include <linux/videodev2.h>
 #include <gst/video/video.h>
+#include <vector>
 
 #include "ICamera.h"
 #include "ScopedAtrace.h"
@@ -61,18 +61,44 @@
 #include "Parameters.h"
 
 using namespace icamera;
+using std::vector;
 
 GST_DEBUG_CATEGORY_EXTERN(gst_camerasrc_debug);
 #define GST_CAT_DEFAULT gst_camerasrc_debug
 
+/**
+  * Used to save the max/min width and height of corresponding format when parsing camera info
+  */
 typedef struct
 {
-  guint32 format;
-  gboolean dimensions;
-} cameraSrcFormatDesc;
+  int max_w;
+  int max_h;
+  int min_w;
+  int min_h;
+} cameraSrc_Res_Range;
+
+/**
+ * Used to save the union set of resolution of corresponding format
+ * This struct will be updated if the resolution range in cameraSrc_Res_Range has larger scale
+ */
+typedef struct
+{
+  int format;
+  cameraSrc_Res_Range range;
+} cameraSrc_Main_Res_Range;
+
+static int register_format_and_resolution(const stream_array_t configs,
+               vector <camera_resolution_t> fmt_res,
+               vector <cameraSrc_Main_Res_Range> &main_res_range);
+static void get_max_and_min_resolution(vector <camera_resolution_t> r, cameraSrc_Res_Range *res_range);
+static void update_main_resolution(int format,
+               cameraSrc_Res_Range res_range,
+               vector <cameraSrc_Main_Res_Range> &main_res_range);
+static GstStructure *create_structure (guint32 fourcc);
+static void set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps **caps);
 
 static GstStructure *
-gst_camerasrc_format_to_structure (guint32 fourcc)
+create_structure (guint32 fourcc)
 {
   PERF_CAMERA_ATRACE();
   GstStructure *structure = NULL;
@@ -98,17 +124,17 @@ gst_camerasrc_format_to_structure (guint32 fourcc)
     }
     break;
     case V4L2_PIX_FMT_XRGB32:{
-       structure = gst_structure_new ("video/x-raw",
+      structure = gst_structure_new ("video/x-raw",
            "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_RGBx), (void *)NULL);
     }
     break;
     case V4L2_PIX_FMT_BGR24:{
-          structure = gst_structure_new ("video/x-raw",
+      structure = gst_structure_new ("video/x-raw",
            "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_BGR), (void *)NULL);
     }
     break;
     case V4L2_PIX_FMT_XBGR32:{
-           structure = gst_structure_new ("video/x-raw",
+      structure = gst_structure_new ("video/x-raw",
             "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_BGRx), (void *)NULL);
     }
     break;
@@ -120,63 +146,130 @@ gst_camerasrc_format_to_structure (guint32 fourcc)
 }
 
 /**
-  * Read all supported formats, width, height from Camera info
-  * if no availble formats, return -1
+  * Set format and maximum range of resolution into structure
+  * Merge all structures into caps
   */
-int get_format_and_resolution(const camera_info_t info, stream_array_t &configs, int &numberOfFormat, int *formats, camera_resolution_t *tmp_res)
+static void
+set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps **caps)
 {
-    PERF_CAMERA_ATRACE();
+  GstStructure *structure = NULL;
 
-    int previousFormat = -1;
-    info.capability->getSupportedStreamConfig(configs);
+  /* Merge resolutions */
+  for (auto&res_range : main_res_range) {
+    structure = create_structure (res_range.format);
+    if (structure) {
+      /* If has only one resolution */
+      if ( res_range.range.max_w == res_range.range.min_w &&
+           res_range.range.max_h == res_range.range.min_h )
+        gst_structure_set (structure,
+              "width", G_TYPE_INT, res_range.range.max_w,
+              "height", G_TYPE_INT, res_range.range.max_h,
+              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
+              "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+              NULL);
+      else
+        gst_structure_set (structure,
+              "width", GST_TYPE_INT_RANGE, res_range.range.min_w, res_range.range.max_w,
+              "height", GST_TYPE_INT_RANGE, res_range.range.min_h, res_range.range.max_h,
+              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
+              "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+              NULL);
 
-    for (size_t j = 0; j < configs.size(); j++) {
-      // Find all non-interlaced format
-      if (configs[j].field == GST_CAMERASRC_INTERLACE_FIELD_ANY
-            && configs[j].format != previousFormat) {
-        formats[numberOfFormat] = configs[j].format;
-        numberOfFormat++;
-        previousFormat = configs[j].format;
-      }
-      tmp_res[j].width = configs[j].width;
-      tmp_res[j].height = configs[j].height;
+      *caps = gst_caps_merge_structure (*caps, structure);
     }
-
-    if (previousFormat == -1 || numberOfFormat == 0)
-        return -1;
-    else
-        return 0;
+  }
 }
 
 /**
-  * Parse all supported resolutions, set values of max width/height and min width/height
-  * from all supported resolutions, used to generate width/height range
+  * Parse all the resolutions saved in camera_resolution_t, select the max/min width and height
+  * and assign to cameraSrc_Res_Range
   */
-void get_max_and_min_resolution(camera_resolution_t *r, int r_count, int *max_w, int *max_h, int *min_w, int *min_h)
+static void
+get_max_and_min_resolution(vector <camera_resolution_t> r, cameraSrc_Res_Range *res_range)
 {
   PERF_CAMERA_ATRACE();
+  gboolean isFirstElem = true;
 
-  if (r) {
-    camera_resolution_t *rz = r;
-    *max_w = rz->width;
-    *max_h = rz->height;
-    *min_w = rz->width;
-    *min_h = rz->height;
-    for (int j = 0; j < r_count; j++, rz++) {
-      if (rz->width > *max_w) {
-        *max_w = rz->width;
-      }
-      if (rz->height > *max_h) {
-        *max_h = rz->height;
-      }
-      if (rz->width < *min_w) {
-        *min_w = rz->width;
-      }
-      if (rz->height < *min_h) {
-        *min_h = rz->height;
-      }
+  for (auto&res : r) {
+    if (isFirstElem) {
+      res_range->max_w = res.width;
+      res_range->max_h = res.height;
+      res_range->min_w = res.width;
+      res_range->min_h = res.height;
+      isFirstElem = false;
+    }
+    camera_resolution_t rz = res;
+    res_range->max_w = MAX(res_range->max_w, rz.width);
+    res_range->max_h = MAX(res_range->max_h, rz.height);
+    res_range->min_w = MIN(res_range->min_w, rz.width);
+    res_range->min_h = MIN(res_range->min_h, rz.height);
+  }
+}
+
+/**
+  *  Generate the maximum range of resolution for each format, and add a new format if the format is not exist before
+  */
+static void
+update_main_resolution(int format,
+    cameraSrc_Res_Range res_range,
+    vector <cameraSrc_Main_Res_Range> &main_res_range)
+{
+  cameraSrc_Main_Res_Range r;
+  gboolean need_update = true;
+
+  for (auto&main_res : main_res_range) {
+    if (main_res.format == format) {
+      main_res.range.max_w = MAX(main_res.range.max_w, res_range.max_w);
+      main_res.range.max_h = MAX(main_res.range.max_h, res_range.max_h);
+      main_res.range.min_w = MIN(main_res.range.min_w, res_range.min_w);
+      main_res.range.min_h = MIN(main_res.range.min_h, res_range.min_h);
+      need_update = false;
     }
   }
+
+  if (need_update) {
+    r.format = format;
+    r.range = res_range;
+    main_res_range.push_back(r);
+  }
+}
+
+/**
+  * Read all supported formats, width, height from Camera info
+  * Register the union set of resolution of each format into cameraSrc_Main_Res_Range
+  */
+static int
+register_format_and_resolution(const stream_array_t configs,
+    vector <camera_resolution_t> fmt_res,
+    vector <cameraSrc_Main_Res_Range> &main_res_range)
+{
+    PERF_CAMERA_ATRACE();
+    int currentFormat = -1;
+    int sum = 0;
+    size_t next_res_idx = 0;
+    cameraSrc_Res_Range res_range;
+    camera_resolution_t r;
+
+    for (size_t j = 0; j < configs.size(); j++) {
+      next_res_idx = j+1;
+      memset(&res_range, 0, sizeof(cameraSrc_Res_Range));
+      currentFormat = configs[j].format;
+
+      if (configs[j].field == GST_CAMERASRC_INTERLACE_FIELD_ANY) {
+        r.width = configs[j].width;
+        r.height = configs[j].height;
+        fmt_res.push_back(r);
+        sum++;
+      }
+
+      if ((next_res_idx < configs.size() && currentFormat != configs[next_res_idx].format) ||
+          next_res_idx == configs.size()) {
+        get_max_and_min_resolution(fmt_res, &res_range);
+        update_main_resolution(currentFormat, res_range, main_res_range);
+        fmt_res.clear();
+      }
+    }
+    return (currentFormat == -1)?-1:0;
 }
 
 GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
@@ -184,10 +277,8 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
   PERF_CAMERA_ATRACE();
 
   static GstCaps *caps = NULL;
-  GstStructure *structure;
-
-  int formats[20];
-  camera_resolution_t tmp_res[20];
+  vector <camera_resolution_t> fmt_res;
+  vector <cameraSrc_Main_Res_Range> main_res_range;
   int ret = 0;
   int count;
 
@@ -197,8 +288,6 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
   for(int i = 0; i < count; i++) {
     stream_array_t configs;
     camera_info_t info;
-    int max_w, max_h, min_w, min_h;
-    int numberOfFormat = 0;
 
     ret = get_camera_info(i, info);
     if (ret != 0) {
@@ -206,41 +295,18 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
       gst_caps_unref(caps);
       return NULL;
     }
+    info.capability->getSupportedStreamConfig(configs);
 
-    ret = get_format_and_resolution(info, configs, numberOfFormat, formats, tmp_res);
+    ret = register_format_and_resolution(configs, fmt_res, main_res_range);
     if (ret != 0) {
         GST_ERROR_OBJECT(camerasrc_class, "failed to get format info from libcamhal %d\n", ret);
         gst_caps_unref(caps);
         return NULL;
     }
-
-    get_max_and_min_resolution(tmp_res, configs.size(), &max_w, &max_h, &min_w, &min_h);
-
-    /* Merge resolutions */
-    for (int j = 0; j < numberOfFormat; j++) {
-      structure = gst_camerasrc_format_to_structure (formats[j]);
-      if (structure) {
-        if ( max_w == min_w && max_h == min_h )
-          gst_structure_set (structure,
-            "width", GST_TYPE_INT_RANGE, min_w-1, max_w,
-            "height", GST_TYPE_INT_RANGE, min_h-1, max_h,
-            "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
-            "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-            (void *)NULL);
-        else
-          gst_structure_set (structure,
-            "width", GST_TYPE_INT_RANGE, min_w, max_w,
-            "height", GST_TYPE_INT_RANGE, min_h, max_h,
-            "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
-            "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-            (void *)NULL);
-      }
-      caps = gst_caps_merge_structure (caps, structure);
-    }
-    memset(formats, 0, sizeof(formats));
-    memset(tmp_res, 0, sizeof(tmp_res));
   }
 
-  return caps;
-}
+  set_structure_to_caps(main_res_range, &caps);
+  main_res_range.clear();
 
+  return gst_caps_simplify(caps);
+}
