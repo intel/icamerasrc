@@ -591,6 +591,7 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum ("deinterlace-method", "Deinterlace method", "The deinterlace method that icamerasrc run",
         gst_camerasrc_deinterlace_method_get_type(), DEFAULT_DEINTERLACE_METHOD, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+ /* DEFAULT_PROP_DEVICE_ID is defined at configure time, user can configure with custom device ID */
  g_object_class_install_property (gobject_class,PROP_DEVICE_ID,
       g_param_spec_enum("device-name","device-name","The input devices name queried from HAL",
    gst_camerasrc_device_id_get_type(), DEFAULT_PROP_DEVICE_ID, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -913,13 +914,12 @@ gst_camerasrc_parse_string_to_matrix(const char *tra_str, float **array, int row
   * parse cct_range property, assign max and min value to  camera_range_t
   */
 static int
-gst_camerasrc_parse_cct_range(Gstcamerasrc *src, const char *cct_range_str, camera_range_t &cct_range)
+gst_camerasrc_parse_cct_range(Gstcamerasrc *src, gchar *cct_range_str, camera_range_t &cct_range)
 {
   char *token = NULL;
   char cct_range_array[64]={'\0'};
 
-  src->man_ctl.cct_range = cct_range_str;
-  strncpy(cct_range_array, src->man_ctl.cct_range, 64);
+  strncpy(cct_range_array, cct_range_str, 64);
   cct_range_array[63] = '\0';
   token = strtok(cct_range_array,"~");
   if (token == NULL) {
@@ -941,13 +941,12 @@ gst_camerasrc_parse_cct_range(Gstcamerasrc *src, const char *cct_range_str, came
   * parse white point property, assign x, y to camera_coordinate_t
   */
 static int
-gst_camerasrc_parse_white_point(Gstcamerasrc *src, const char *wp_str, camera_coordinate_t &white_point)
+gst_camerasrc_parse_white_point(Gstcamerasrc *src, gchar *wp_str, camera_coordinate_t &white_point)
 {
   char *token = NULL;
   char white_point_array[64]={'\0'};
 
-  src->man_ctl.wp = wp_str;
-  strncpy(white_point_array, src->man_ctl.wp, 64);
+  strncpy(white_point_array, wp_str, 64);
   white_point_array[63] = '\0';
   token = strtok(white_point_array,",");
   if (token == NULL) {
@@ -1075,6 +1074,11 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_WDR_MODE:
       src->param->setWdrMode((camera_wdr_mode_t)g_value_get_enum(value));
       src->man_ctl.wdr_mode = g_value_get_enum (value);
+      /* W/A: When wdr-mode is on and specific camera is selected,
+       *      switch to another camera ID and pass on to HAL.
+       */
+      if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON && src->device_id == 2)
+        src->device_id = 14;
       break;
     case PROP_BLC_AREA_MODE:
       src->param->setBlcAreaMode((camera_blc_area_mode_t)g_value_get_enum(value));
@@ -1135,14 +1139,18 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->man_ctl.exposure_ev = g_value_get_int (value);
       break;
     case PROP_CCT_RANGE:
+      g_free(src->man_ctl.cct_range);
+      src->man_ctl.cct_range = g_strdup(g_value_get_string (value));
       src->param->getAwbCctRange(cct_range);
-      ret = gst_camerasrc_parse_cct_range(src, g_value_get_string (value), cct_range);
+      ret = gst_camerasrc_parse_cct_range(src, src->man_ctl.cct_range, cct_range);
       if (ret == 0)
         src->param->setAwbCctRange(cct_range);
       break;
     case PROP_WP:
+      g_free(src->man_ctl.wp);
+      src->man_ctl.wp = g_strdup(g_value_get_string (value));
       src->param->getAwbWhitePoint(white_point);
-      ret = gst_camerasrc_parse_white_point(src, g_value_get_string (value), white_point);
+      ret = gst_camerasrc_parse_white_point(src, src->man_ctl.wp, white_point);
       if (ret == 0)
         src->param->setAwbWhitePoint(white_point);
       break;

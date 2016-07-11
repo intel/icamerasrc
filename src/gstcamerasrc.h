@@ -64,7 +64,6 @@ G_BEGIN_DECLS
 #define MAX_PROP_BUFFERCOUNT 10
 #define MIN_PROP_BUFFERCOUNT 2
 #define DEFAULT_PROP_PRINT_FPS false
-// DEFAULT_PROP_DEVICE_ID is defined at configure time, see makefiles
 
 /* Default value of enum type property 'io-mode':userptr */
 #define DEFAULT_PROP_IO_MODE GST_CAMERASRC_IO_MODE_USERPTR
@@ -272,8 +271,8 @@ struct _Gst3AManualControl
   /* White Balance*/
   int awb_mode;
   char awb_region[128];
-  const char *cct_range;
-  const char *wp;
+  gchar *cct_range;
+  gchar *wp;
   char color_transform[64];
   guint awb_shift_r;
   guint awb_shift_g;

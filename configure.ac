@@ -87,6 +87,9 @@ AC_ARG_WITH([camera3hal],
   [],
   [with_camera3hal=no])
 
+AC_ARG_VAR([DEFAULT_CAMERA],
+  [the default camera ID])
+
 AC_LANG_PUSH([C++])
 # Checks for headers - these don't work with bitbake so can be disabled
 AS_IF([test "x$with_headercheck" == xyes],
@@ -104,10 +107,16 @@ AS_IF([test "x$with_camera3hal" == xyes],
     AC_SUBST([HAL_LIB], [-lcamerahal])
     AC_SUBST([DEFAULT_PROP_DEVICE_ID], [0])
   ],
-  [
-    AC_SUBST([HAL_LIB], [-lcamhal])
-    AC_SUBST([DEFAULT_PROP_DEVICE_ID], [5])
-  ])
+  [AS_IF([test "x${DEFAULT_CAMERA}" == x],
+    [
+      AC_SUBST([HAL_LIB], [-lcamhal])
+      AC_SUBST([DEFAULT_PROP_DEVICE_ID], [0])
+    ],
+    [
+      AC_SUBST([HAL_LIB], [-lcamhal])
+      AC_SUBST([DEFAULT_PROP_DEVICE_ID], ["${DEFAULT_CAMERA}"])
+    ])
+])
 
 # Checks for libraries - these paths don't work with bitbake, so can be disabled
 AS_IF([test "x$with_libcheck" == xyes],
