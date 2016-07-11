@@ -403,8 +403,8 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
       meta->buffer->s.memType = V4L2_MEMORY_DMABUF;
     break;
     default:
-      GST_ERROR_OBJECT(camerasrc, "io-mode %d is not supported yet.", camerasrc->io_mode);
-    goto err_io_mode;
+      GST_ERROR_OBJECT(camerasrc, "Cannot find corresponding io-mode in %s, please verify if this mode is valid.",__FUNCTION__);
+      goto err_io_mode;
   }
 
   meta->buffer->s = camerasrc->streams[0];
@@ -522,21 +522,30 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
   timestamp = meta->buffer->timestamp;
   camerasrc->time_end = meta->buffer->timestamp;
 
-  if ((camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE)
-          && camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_NONE) {
-    ret = gst_camerasrc_deinterlace_frame(camerasrc, meta->buffer);
-    if (ret != 0) {
-      GST_ERROR_OBJECT(camerasrc, "deinterlace frame failed ret %d.\n", ret);
-      return GST_FLOW_ERROR;
-    }
-  } else if ((meta->buffer->s.field == V4L2_FIELD_TOP) || (meta->buffer->s.field == V4L2_FIELD_BOTTOM)) {
-      if (meta->buffer->s.field == V4L2_FIELD_TOP)
-          GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
-      else
-          GST_BUFFER_FLAG_UNSET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
-
-      GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
-      GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_ONEFIELD);
+  switch(meta->buffer->s.field) {
+    case GST_CAMERASRC_INTERLACE_FIELD_ANY: //V4L2_FIELD_ANY
+        break;
+    case GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE: // V4L2_FIELD_ALTERNATE
+        GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
+        GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+        if (camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_NONE) {
+          ret = gst_camerasrc_deinterlace_frame(camerasrc, meta->buffer);
+          if (ret != 0) {
+              GST_ERROR_OBJECT(camerasrc, "deinterlace frame failed ret %d.\n", ret);
+              return GST_FLOW_ERROR;
+          }
+        }
+        break;
+    case V4L2_FIELD_TOP:
+    case V4L2_FIELD_BOTTOM:
+        GST_BUFFER_FLAG_UNSET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
+        GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+        GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_ONEFIELD);
+        break;
+    default:
+        GST_BUFFER_FLAG_UNSET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
+        GST_BUFFER_FLAG_UNSET (gbuffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+        break;
   }
 
   GST_BUFFER_TIMESTAMP(gbuffer) = timestamp;

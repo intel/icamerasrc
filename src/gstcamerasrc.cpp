@@ -100,7 +100,8 @@ enum
   PROP_GAIN,
   PROP_AE_MODE,
   PROP_AE_REGION,
-  PROP_AE_CONVERGE_SPEED,
+  PROP_CONVERGE_SPEED,
+  PROP_CONVERGE_SPEED_MODE,
   /* Backlight Settings*/
   PROP_WDR_MODE,
   PROP_BLC_AREA_MODE,
@@ -478,25 +479,45 @@ gst_camerasrc_ae_mode_get_type(void)
 }
 
 static GType
-gst_camerasrc_ae_converge_speed_get_type(void)
+gst_camerasrc_converge_speed_get_type(void)
 {
   PERF_CAMERA_ATRACE();
-  static GType ae_cvg_speed_type = 0;
+  static GType cvg_speed_type = 0;
 
   static const GEnumValue method_types[] = {
-    {GST_CAMERASRC_AE_CONVERGE_SPEED_NORMAL,
+    {GST_CAMERASRC_CONVERGE_SPEED_NORMAL,
           "NORMAL", "normal"},
-    {GST_CAMERASRC_AE_CONVERGE_SPEED_MID,
+    {GST_CAMERASRC_CONVERGE_SPEED_MID,
           "MID", "mid"},
-    {GST_CAMERASRC_AE_CONVERGE_SPEED_LOW,
+    {GST_CAMERASRC_CONVERGE_SPEED_LOW,
           "LOW", "low"},
      {0, NULL, NULL},
    };
 
-  if (!ae_cvg_speed_type) {
-    ae_cvg_speed_type = g_enum_register_static ("GstCamerasrcAeConvergeSpeed", method_types);
+  if (!cvg_speed_type) {
+    cvg_speed_type = g_enum_register_static ("GstCamerasrcConvergeSpeed", method_types);
   }
-  return ae_cvg_speed_type;
+  return cvg_speed_type;
+}
+
+static GType
+gst_camerasrc_converge_speed_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType cvg_speed_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_CONVERGE_SPEED_MODE_AIQ,
+          "USE AIQ", "aiq"},
+    {GST_CAMERASRC_CONVERGE_SPEED_MODE_HAL,
+          "USE HAL", "hal"},
+     {0, NULL, NULL},
+   };
+
+  if (!cvg_speed_mode_type) {
+    cvg_speed_mode_type = g_enum_register_static ("GstCamerasrcConvergeSpeedMode", method_types);
+  }
+  return cvg_speed_mode_type;
 }
 
 static GType
@@ -688,9 +709,13 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum ("ae-mode", "AE mode", "AE mode",
           gst_camerasrc_ae_mode_get_type(), DEFAULT_PROP_AE_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
-  g_object_class_install_property (gobject_class, PROP_AE_CONVERGE_SPEED,
-      g_param_spec_enum ("ae-converge-speed", "AE Converge Speed", "AE Converge Speed",
-          gst_camerasrc_ae_converge_speed_get_type(), DEFAULT_PROP_AE_CONVERGE_SPEED, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_CONVERGE_SPEED,
+      g_param_spec_enum ("converge-speed", "Converge Speed", "Converge Speed",
+          gst_camerasrc_converge_speed_get_type(), DEFAULT_PROP_CONVERGE_SPEED, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_CONVERGE_SPEED_MODE,
+      g_param_spec_enum ("converge-speed-mode", "Converge Speed Mode", "Converge Speed Mode",
+          gst_camerasrc_converge_speed_mode_get_type(), DEFAULT_PROP_CONVERGE_SPEED_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property(gobject_class,PROP_EXPOSURE_EV,
       g_param_spec_int("ev","Exposure Ev","Exposure Ev",
@@ -1130,9 +1155,15 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->param->setAeMode((camera_ae_mode_t)g_value_get_enum(value));
       src->man_ctl.ae_mode = g_value_get_enum(value);
       break;
-    case PROP_AE_CONVERGE_SPEED:
+    case PROP_CONVERGE_SPEED:
       src->param->setAeConvergeSpeed((camera_converge_speed_t)g_value_get_enum(value));
       src->param->setAwbConvergeSpeed((camera_converge_speed_t)g_value_get_enum(value));
+      src->man_ctl.converge_speed = g_value_get_enum(value);
+      break;
+    case PROP_CONVERGE_SPEED_MODE:
+      src->param->setAeConvergeSpeedMode((camera_converge_speed_mode_t)g_value_get_enum(value));
+      src->param->setAwbConvergeSpeedMode((camera_converge_speed_mode_t)g_value_get_enum(value));
+      src->man_ctl.converge_speed_mode = g_value_get_enum(value);
       break;
     case PROP_EXPOSURE_EV:
       src->param->setAeCompensation(g_value_get_int(value));
@@ -1307,8 +1338,11 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
     case PROP_AE_MODE:
       g_value_set_enum (value, src->man_ctl.ae_mode);
       break;
-    case PROP_AE_CONVERGE_SPEED:
-      g_value_set_enum (value, src->man_ctl.ae_converge_speed);
+    case PROP_CONVERGE_SPEED:
+      g_value_set_enum (value, src->man_ctl.converge_speed);
+      break;
+    case PROP_CONVERGE_SPEED_MODE:
+      g_value_set_enum (value, src->man_ctl.converge_speed_mode);
       break;
     case PROP_EXPOSURE_EV:
       g_value_set_int (value, src->man_ctl.exposure_ev);
@@ -1484,7 +1518,7 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
       camerasrc->streams[0].memType = V4L2_MEMORY_MMAP;
       break;
     default:
-      GST_ERROR_OBJECT(camerasrc, "iomode %d is not supported yet.", camerasrc->io_mode);
+      GST_ERROR_OBJECT(camerasrc, "Cannot find corresponding io-mode in %s, please verify if this mode is valid.",__FUNCTION__);
       break;
   }
 

@@ -94,7 +94,7 @@ int gst_camerasrc_deinterlace_frame(Gstcamerasrc *camerasrc, camera_buffer_t *bu
         return gst_camerasrc_deinterlace_sw_bob(camerasrc, buffer);
       break;
       default:
-        GST_ERROR_OBJECT(camerasrc, "deinterlace method %d is not supported yet.", camerasrc->deinterlace_method);
+        GST_ERROR_OBJECT(camerasrc, "Cannot find corresponding deinterlace method in %s, please verify if this mode is valid.",__FUNCTION__);
       break;
     }
   }

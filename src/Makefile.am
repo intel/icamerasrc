@@ -58,7 +58,14 @@ plugin_LTLIBRARIES = libgsticamerasrc.la
 ##############################################################################
 
 # sources used to compile this plug-in
-libgsticamerasrc_la_SOURCES = gstcamerasrc.cpp gstcamerasrc.h gstcameraformat.cpp gstcameraformat.h gstcamerasrcbufferpool.cpp gstcamerasrcbufferpool.h gstcameradeinterlace.cpp gstcameradeinterlace.h
+libgsticamerasrc_la_SOURCES = gstcamerasrc.cpp \
+                              gstcamerasrc.h \
+                              gstcameraformat.cpp \
+                              gstcameraformat.h \
+                              gstcamerasrcbufferpool.cpp \
+                              gstcamerasrcbufferpool.h \
+                              gstcameradeinterlace.cpp \
+                              gstcameradeinterlace.h
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
 libgsticamerasrc_la_CPPFLAGS = \

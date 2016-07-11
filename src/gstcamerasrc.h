@@ -90,7 +90,8 @@ G_BEGIN_DECLS
 /* Default value of enum type property 'ae-mode':auto */
 #define DEFAULT_PROP_AE_MODE GST_CAMERASRC_AE_MODE_AUTO
 /* Default value of enum type property 'ae-converge-speed':normal */
-#define DEFAULT_PROP_AE_CONVERGE_SPEED GST_CAMERASRC_AE_CONVERGE_SPEED_NORMAL
+#define DEFAULT_PROP_CONVERGE_SPEED GST_CAMERASRC_CONVERGE_SPEED_NORMAL
+#define DEFAULT_PROP_CONVERGE_SPEED_MODE GST_CAMERASRC_CONVERGE_SPEED_MODE_AIQ
 /* Default value of enum type property 'antibanding':auto*/
 #define DEFAULT_PROP_ANTIBANDING_MODE GST_CAMERASRC_ANTIBANDING_MODE_AUTO
 
@@ -204,10 +205,16 @@ typedef enum
 
 typedef enum
 {
-  GST_CAMERASRC_AE_CONVERGE_SPEED_NORMAL = 0,
-  GST_CAMERASRC_AE_CONVERGE_SPEED_MID = 1,
-  GST_CAMERASRC_AE_CONVERGE_SPEED_LOW = 2,
-} GstCamerasrcAeConvergeSpeed;
+  GST_CAMERASRC_CONVERGE_SPEED_NORMAL = 0,
+  GST_CAMERASRC_CONVERGE_SPEED_MID = 1,
+  GST_CAMERASRC_CONVERGE_SPEED_LOW = 2,
+} GstCamerasrcConvergeSpeed;
+
+typedef enum
+{
+  GST_CAMERASRC_CONVERGE_SPEED_MODE_AIQ = 0,
+  GST_CAMERASRC_CONVERGE_SPEED_MODE_HAL = 1,
+} GstCamerasrcConvergeSpeedMode;
 
 typedef enum
 {
@@ -263,7 +270,8 @@ struct _Gst3AManualControl
   guint gain;
   int ae_mode;
   char ae_region[128];
-  int ae_converge_speed;
+  int converge_speed;
+  int converge_speed_mode;
   /* Backlight Settings*/
   int wdr_mode;
   int blc_area_mode;

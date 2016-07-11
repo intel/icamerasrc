@@ -82,10 +82,17 @@ AC_ARG_WITH([libcheck],
   [],
   [with_libcheck=yes])
 
-AC_ARG_WITH([camera3hal],
-  [AS_HELP_STRING([--with-camera3hal], [use camera3hal for linking] @@)],
+AC_ARG_WITH([cameralib],
+  [AS_HELP_STRING([--with-cameralib], [select camera hal for linking] @@)],
   [],
-  [with_camera3hal=no])
+  [with_cameralib=lcamhal])
+
+AC_SUBST([HAL_LIB], [-$with_cameralib])
+
+AC_ARG_WITH([androidstubs]
+  [AS_HELP_STRING([--with-androidstubs], [add android stubs for linking] @@)],
+  [],
+  [with_androidstubs=no])
 
 AC_ARG_VAR([DEFAULT_CAMERA],
   [the default camera ID])
@@ -100,23 +107,20 @@ AS_IF([test "x$with_headercheck" == xyes],
     ])
   ], [])
 
-# HAL library selection
-AS_IF([test "x$with_camera3hal" == xyes],
+# default camera selection
+AS_IF([test "x${DEFAULT_CAMERA}" == x],
   [
-    PKG_CHECK_MODULES([LIBANDROID_STUBS], [libandroid_stubs])
-    AC_SUBST([HAL_LIB], [-lcamerahal])
     AC_SUBST([DEFAULT_PROP_DEVICE_ID], [0])
   ],
-  [AS_IF([test "x${DEFAULT_CAMERA}" == x],
-    [
-      AC_SUBST([HAL_LIB], [-lcamhal])
-      AC_SUBST([DEFAULT_PROP_DEVICE_ID], [0])
-    ],
-    [
-      AC_SUBST([HAL_LIB], [-lcamhal])
-      AC_SUBST([DEFAULT_PROP_DEVICE_ID], ["${DEFAULT_CAMERA}"])
-    ])
-])
+  [
+    AC_SUBST([DEFAULT_PROP_DEVICE_ID], ["${DEFAULT_CAMERA}"])
+  ])
+
+# check for android stub linking
+AS_IF([test "x$with_androidstubs" == xyes],
+  [
+    PKG_CHECK_MODULES([LIBANDROID_STUBS], [libandroid_stubs])
+  ], [])
 
 # Checks for libraries - these paths don't work with bitbake, so can be disabled
 AS_IF([test "x$with_libcheck" == xyes],
