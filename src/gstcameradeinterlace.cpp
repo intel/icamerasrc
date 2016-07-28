@@ -78,8 +78,8 @@ gst_camerasrc_deinterlace_sw_bob(Gstcamerasrc *camerasrc, camera_buffer_t *buffe
   const int bytes_of_line = camerasrc->bpl;
 
   for (int i = height/2; i > 0 ; i--) {
-    memcpy(addr + (i*2-1)*bytes_of_line, addr + (i-1)*bytes_of_line, bytes_of_line);
-    memcpy(addr + (i*2-2)*bytes_of_line, addr + (i-1)*bytes_of_line, bytes_of_line);
+    MEMCPY_S(addr + (i*2-1)*bytes_of_line, bytes_of_line, addr + (i-1)*bytes_of_line, bytes_of_line);
+    MEMCPY_S(addr + (i*2-2)*bytes_of_line, bytes_of_line, addr + (i-1)*bytes_of_line, bytes_of_line);
   }
 
   return 0;

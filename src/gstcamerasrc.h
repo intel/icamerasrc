@@ -102,6 +102,13 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_CCT_RANGE NULL
 #define DEFAULT_PROP_COLOR_TRANSFORM NULL
 
+// Macro for memcpy
+#define MEMCPY_S(dest, dmax, src, smax) \
+  memcpy((dest), (src), std::min((size_t)(dmax), (size_t)(smax)))
+
+// Macro for strncpy
+#define STRNCPY_S(dest, dmax, src, slen) \
+   strncpy((dest), (src), std::min((size_t)(dmax), (size_t)(slen)))
 enum
 {
     CAMERASRC_CAPTURE_MODE_STILL = 0,

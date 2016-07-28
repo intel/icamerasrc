@@ -944,7 +944,7 @@ gst_camerasrc_parse_cct_range(Gstcamerasrc *src, gchar *cct_range_str, camera_ra
   char *token = NULL;
   char cct_range_array[64]={'\0'};
 
-  strncpy(cct_range_array, cct_range_str, 64);
+  STRNCPY_S(cct_range_array, sizeof(cct_range_array) * sizeof(char), cct_range_str, strlen(cct_range_str));
   cct_range_array[63] = '\0';
   token = strtok(cct_range_array,"~");
   if (token == NULL) {
@@ -971,7 +971,7 @@ gst_camerasrc_parse_white_point(Gstcamerasrc *src, gchar *wp_str, camera_coordin
   char *token = NULL;
   char white_point_array[64]={'\0'};
 
-  strncpy(white_point_array, wp_str, 64);
+  STRNCPY_S(white_point_array, sizeof(white_point_array) * sizeof(char), wp_str, strlen(wp_str));
   white_point_array[63] = '\0';
   token = strtok(white_point_array,",");
   if (token == NULL) {
@@ -1102,8 +1102,8 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       /* W/A: When wdr-mode is on and specific camera is selected,
        *      switch to another camera ID and pass on to HAL.
        */
-      if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON && src->device_id == 2)
-        src->device_id = 14;
+      if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON && src->device_id == 3)
+        src->device_id = 19;
       break;
     case PROP_BLC_AREA_MODE:
       src->param->setBlcAreaMode((camera_blc_area_mode_t)g_value_get_enum(value));
@@ -1206,13 +1206,15 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_AE_REGION:
       if (gst_camerasrc_get_region_vector(g_value_get_string (value), region) == 0) {
         src->param->setAeRegions(region);
-        strncpy(src->man_ctl.ae_region, g_value_get_string(value), (sizeof(src->man_ctl.ae_region)-1));
+        STRNCPY_S(src->man_ctl.ae_region, (sizeof(src->man_ctl.ae_region)-1),
+                g_value_get_string(value), strlen(g_value_get_string(value)));
       }
       break;
     case PROP_AWB_REGION:
       if (gst_camerasrc_get_region_vector(g_value_get_string (value), region) == 0) {
         src->param->setAwbRegions(region);
-        strncpy(src->man_ctl.awb_region, g_value_get_string(value), (sizeof(src->man_ctl.awb_region)-1));
+        STRNCPY_S(src->man_ctl.awb_region, (sizeof(src->man_ctl.awb_region)-1),
+                 g_value_get_string(value), strlen(g_value_get_string(value)));
       }
       break;
     case PROP_AWB_COLOR_TRANSFORM:
@@ -1220,7 +1222,8 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
                                     (float**)(transform.color_transform), 3, 3);
       if (ret == 0) {
         src->param->setColorTransform(transform);
-        strncpy(src->man_ctl.color_transform, g_value_get_string(value), (sizeof(src->man_ctl.color_transform)-1));
+        STRNCPY_S(src->man_ctl.color_transform, (sizeof(src->man_ctl.color_transform)-1),
+                 g_value_get_string(value), strlen(g_value_get_string(value)));
       }
       break;
     case PROP_ANTIBANDING_MODE:
