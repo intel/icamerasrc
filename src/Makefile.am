@@ -75,12 +75,18 @@ libgsticamerasrc_la_CPPFLAGS = \
     $(LIBANDROID_STUBS_CFLAGS) \
     -DDEFAULT_PROP_DEVICE_ID=$(DEFAULT_PROP_DEVICE_ID)
 
+# for hardening-check
+libgsticamerasrc_la_CPPFLAGS+= -fstack-protector -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
+
 libgsticamerasrc_la_LIBADD = $(GST_LIBS) \
     -lgstallocators-$(GST_API_VERSION) \
     -lgstvideo-$(GST_API_VERSION) \
     $(HAL_LIB)
 
 libgsticamerasrc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
+# for hardening-check
+libgsticamerasrc_la_LDFLAGS += -fstack-protector-strong -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now
+
 libgsticamerasrc_la_LIBTOOLFLAGS = --tag=disable-static
 
 # headers we need but don't want installed

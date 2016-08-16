@@ -86,6 +86,7 @@ enum
   PROP_DEINTERLACE_METHOD,
   PROP_DEVICE_ID,
   PROP_IO_MODE,
+  PROP_NUM_VC,
   /* Image Adjust-ment*/
   PROP_SHARPNESS,
   PROP_BRIGHTNESS,
@@ -333,20 +334,20 @@ gst_camerasrc_awb_mode_get_type(void)
   static const GEnumValue method_types[] = {
     {GST_CAMERASRC_AWB_MODE_AUTO,
           "Auto", "auto"},
-    {GST_CAMERASRC_AWB_MODE_PARTLY_OVERCAST,
-          "Partly overcast", "partly_overcast"},
-    {GST_CAMERASRC_AWB_MODE_FULLY_OVERCAST,
-          "Fully overcast", "fully_overcast"},
-    {GST_CAMERASRC_AWB_MODE_FLUORESCENT,
-          "Fluorescent", "fluorescent"},
     {GST_CAMERASRC_AWB_MODE_INCANDESCENT,
           "Incandescent", "incandescent"},
+    {GST_CAMERASRC_AWB_MODE_FLUORESCENT,
+          "Fluorescent", "fluorescent"},
+    {GST_CAMERASRC_AWB_MODE_DAYLIGHT,
+          "Daylight", "daylight"},
+    {GST_CAMERASRC_AWB_MODE_FULLY_OVERCAST,
+          "Fully overcast", "fully_overcast"},
+    {GST_CAMERASRC_AWB_MODE_PARTLY_OVERCAST,
+          "Partly overcast", "partly_overcast"},
     {GST_CAMERASRC_AWB_MODE_SUNSET,
           "Sunset", "sunset"},
     {GST_CAMERASRC_AWB_MODE_VIDEO_CONFERENCING,
           "Video conferencing", "video_conferencing"},
-    {GST_CAMERASRC_AWB_MODE_DAYLIGHT,
-          "Daylight", "daylight"},
     {GST_CAMERASRC_AWB_MODE_CCT_RANGE,
           "CCT range", "cct_range"},
     {GST_CAMERASRC_AWB_MODE_WHITE_POINT,
@@ -617,6 +618,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum("device-name","device-name","The input devices name queried from HAL",
    gst_camerasrc_device_id_get_type(), DEFAULT_PROP_DEVICE_ID, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+ g_object_class_install_property(gobject_class,PROP_NUM_VC,
+      g_param_spec_int("num-vc","Number Virtual Channel","Number of enabled Virtual Channel",
+      0,8,0, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_IO_MODE,
       g_param_spec_enum ("io-mode", "IO mode", "The memory types of the frame buffer",
           gst_camerasrc_io_mode_get_type(), DEFAULT_PROP_IO_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -809,6 +814,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->interlace_field = DEFAULT_PROP_INTERLACE_MODE;
   camerasrc->device_id = DEFAULT_PROP_DEVICE_ID;
   camerasrc->camera_open = false;
+  camerasrc->num_vc = 0;
 
   /* set default value for 3A manual control*/
   camerasrc->param = new Parameters;
@@ -944,8 +950,7 @@ gst_camerasrc_parse_cct_range(Gstcamerasrc *src, gchar *cct_range_str, camera_ra
   char *token = NULL;
   char cct_range_array[64]={'\0'};
 
-  STRNCPY_S(cct_range_array, sizeof(cct_range_array) * sizeof(char), cct_range_str, strlen(cct_range_str));
-  cct_range_array[63] = '\0';
+  snprintf(cct_range_array, sizeof(cct_range_array), "%s", cct_range_str);
   token = strtok(cct_range_array,"~");
   if (token == NULL) {
       GST_ERROR_OBJECT(src, "failed to acquire cct range.");
@@ -971,8 +976,7 @@ gst_camerasrc_parse_white_point(Gstcamerasrc *src, gchar *wp_str, camera_coordin
   char *token = NULL;
   char white_point_array[64]={'\0'};
 
-  STRNCPY_S(white_point_array, sizeof(white_point_array) * sizeof(char), wp_str, strlen(wp_str));
-  white_point_array[63] = '\0';
+  snprintf(white_point_array, sizeof(white_point_array), "%s", wp_str);
   token = strtok(white_point_array,",");
   if (token == NULL) {
       GST_ERROR_OBJECT(src, "failed to acquire white point.");
@@ -1050,6 +1054,10 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
           return;
       }
       break;
+    case PROP_NUM_VC:
+      manual_setting = false;
+      src->num_vc = g_value_get_int(value);
+      break;
     case PROP_SHARPNESS:
       src->param->getImageEnhancement(img_enhancement);
       img_enhancement.sharpness = g_value_get_int (value);
@@ -1103,7 +1111,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
        *      switch to another camera ID and pass on to HAL.
        */
       if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON && src->device_id == 3)
-        src->device_id = 19;
+        src->device_id = 23;
       break;
     case PROP_BLC_AREA_MODE:
       src->param->setBlcAreaMode((camera_blc_area_mode_t)g_value_get_enum(value));
@@ -1206,15 +1214,15 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_AE_REGION:
       if (gst_camerasrc_get_region_vector(g_value_get_string (value), region) == 0) {
         src->param->setAeRegions(region);
-        STRNCPY_S(src->man_ctl.ae_region, (sizeof(src->man_ctl.ae_region)-1),
-                g_value_get_string(value), strlen(g_value_get_string(value)));
+        snprintf(src->man_ctl.ae_region, sizeof(src->man_ctl.ae_region),
+                 "%s", g_value_get_string(value));
       }
       break;
     case PROP_AWB_REGION:
       if (gst_camerasrc_get_region_vector(g_value_get_string (value), region) == 0) {
         src->param->setAwbRegions(region);
-        STRNCPY_S(src->man_ctl.awb_region, (sizeof(src->man_ctl.awb_region)-1),
-                 g_value_get_string(value), strlen(g_value_get_string(value)));
+        snprintf(src->man_ctl.awb_region, sizeof(src->man_ctl.awb_region),
+                "%s", g_value_get_string(value));
       }
       break;
     case PROP_AWB_COLOR_TRANSFORM:
@@ -1222,8 +1230,8 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
                                     (float**)(transform.color_transform), 3, 3);
       if (ret == 0) {
         src->param->setColorTransform(transform);
-        STRNCPY_S(src->man_ctl.color_transform, (sizeof(src->man_ctl.color_transform)-1),
-                 g_value_get_string(value), strlen(g_value_get_string(value)));
+        snprintf(src->man_ctl.color_transform, sizeof(src->man_ctl.color_transform),
+                 "%s", g_value_get_string(value));
       }
       break;
     case PROP_ANTIBANDING_MODE:
@@ -1277,6 +1285,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_DEVICE_ID:
       g_value_set_enum (value, src->device_id);
+      break;
+    case PROP_NUM_VC:
+      g_value_set_int(value, src->num_vc);
       break;
     case PROP_SHARPNESS:
       g_value_set_int (value, src->man_ctl.sharpness);
@@ -1587,7 +1598,8 @@ gst_camerasrc_start(GstBaseSrc *basesrc)
     return FALSE;
   }
 
-  ret = camera_device_open(camerasrc->device_id);
+  ret = camera_device_open(camerasrc->device_id, camerasrc->num_vc);
+
   if (ret < 0) {
      GST_ERROR_OBJECT(camerasrc, "incorrect device_id, failed to open libcamhal device.");
      camerasrc->camera_open = false;

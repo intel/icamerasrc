@@ -106,9 +106,6 @@ G_BEGIN_DECLS
 #define MEMCPY_S(dest, dmax, src, smax) \
   memcpy((dest), (src), std::min((size_t)(dmax), (size_t)(smax)))
 
-// Macro for strncpy
-#define STRNCPY_S(dest, dmax, src, slen) \
-   strncpy((dest), (src), std::min((size_t)(dmax), (size_t)(slen)))
 enum
 {
     CAMERASRC_CAPTURE_MODE_STILL = 0,
@@ -160,13 +157,13 @@ typedef enum
 typedef enum
 {
   GST_CAMERASRC_AWB_MODE_AUTO = 0,
-  GST_CAMERASRC_AWB_MODE_PARTLY_OVERCAST = 1,
-  GST_CAMERASRC_AWB_MODE_FULLY_OVERCAST = 2,
-  GST_CAMERASRC_AWB_MODE_FLUORESCENT = 3,
-  GST_CAMERASRC_AWB_MODE_INCANDESCENT = 4,
-  GST_CAMERASRC_AWB_MODE_SUNSET = 5,
-  GST_CAMERASRC_AWB_MODE_VIDEO_CONFERENCING = 6,
-  GST_CAMERASRC_AWB_MODE_DAYLIGHT = 7,
+  GST_CAMERASRC_AWB_MODE_INCANDESCENT = 1,
+  GST_CAMERASRC_AWB_MODE_FLUORESCENT = 2,
+  GST_CAMERASRC_AWB_MODE_DAYLIGHT = 3,
+  GST_CAMERASRC_AWB_MODE_FULLY_OVERCAST = 4,
+  GST_CAMERASRC_AWB_MODE_PARTLY_OVERCAST = 5,
+  GST_CAMERASRC_AWB_MODE_SUNSET = 6,
+  GST_CAMERASRC_AWB_MODE_VIDEO_CONFERENCING = 7,
   GST_CAMERASRC_AWB_MODE_CCT_RANGE = 8,
   GST_CAMERASRC_AWB_MODE_WHITE_POINT = 9,
   GST_CAMERASRC_AWB_MODE_MANUAL_GAIN = 10,
@@ -339,6 +336,7 @@ struct _Gstcamerasrc
   guint capture_mode;
   guint print_fps;
   GstFpsDebug fps_debug;
+  guint num_vc;
 
   /*3A properties */
   gboolean camera_open;

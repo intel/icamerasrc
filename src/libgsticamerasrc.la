@@ -17,7 +17,7 @@ old_library=''
 inherited_linker_flags=''
 
 # Libraries that this one depends upon.
-dependency_libs=' -L/usr/lib64 -L/usr/lib -lgstbase-1.0 -lgstcontroller-1.0 -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0 -lgstallocators-1.0 -lgstvideo-1.0 /usr/lib/libcamhal.la -lia_aiq -lia_cmc_parser -lia_exc -lia_nvm /usr/lib64/libia_camera.la -lia_log -lia_mkn /usr/lib64/libia_cipf.la /usr/lib/x86_64-linux-gnu/libexpat.la -lia_p2p -lia_isp_bxt -lbroxton_ia_pal -lgeneric_aic -lauxiliary -lisp_common -lispfw_wrapper'
+dependency_libs=' -L/usr/lib64 -L/usr/lib -lgstbase-1.0 -lgstcontroller-1.0 -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0 -lgstallocators-1.0 -lgstvideo-1.0 /usr/lib/libcamhal.la -lia_camera -lia_cipf /usr/lib/gcc/x86_64-linux-gnu/4.8/../../../x86_64-linux-gnu/libexpat.la -lia_aiq -lia_cmc_parser -lia_exc -lia_nvm -L/home/ghu3/code/repo/camera/out/libiaaiq/lib -L/home/ghu3/code/repo/camera/out/libiacss/lib -lgcss /usr/lib/x86_64-linux-gnu/libia_camera.la -lia_log -lia_mkn /usr/lib/libia_cipf.la /usr/lib/libgcss.la /usr/lib/x86_64-linux-gnu/libexpat.la /usr/lib/x86_64-linux-gnu/libia_cipf.la -lia_p2p -lia_isp_bxt -lbroxton_ia_pal -lia_ltm -lgeneric_aic -lauxiliary -lisp_common -lispfw_wrapper'
 
 # Names of additional weak libraries provided by this library
 weak_library_names=''
@@ -38,4 +38,5 @@ dlopen=''
 dlpreopen=''
 
 # Directory that this library needs to be installed in:
-libdir='/usr/local/lib/gstreamer-1.0'
+libdir='/usr/lib/gstreamer-1.0'
+relink_command="(cd /home/ghu3/code/icamerasrc/src; /bin/bash /home/ghu3/code/icamerasrc/libtool  --tag CXX --tag disable-static --mode=relink g++ -g -O2 -module -avoid-version -export-symbols-regex \"_*(gst_|Gst|GST_).*\" -fstack-protector-strong -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now -L/usr/lib64 -L/usr/lib -o libgsticamerasrc.la -rpath /usr/lib/gstreamer-1.0 libgsticamerasrc_la-gstcamerasrc.lo libgsticamerasrc_la-gstcameraformat.lo libgsticamerasrc_la-gstcamerasrcbufferpool.lo libgsticamerasrc_la-gstcameradeinterlace.lo -lgstbase-1.0 -lgstcontroller-1.0 -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0 -lgstallocators-1.0 -lgstvideo-1.0 -lcamhal -lcamhal @inst_prefix_dir@)"

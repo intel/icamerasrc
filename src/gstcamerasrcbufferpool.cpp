@@ -553,7 +553,8 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
   pool->acquire_buffer_index++;
   GST_DEBUG_OBJECT(camerasrc, "acquire_buffer buffer %p\n", *buffer);
   {
-    PERF_CAMERA_ATRACE_PARAM1("sof.sequence", meta->buffer->sequence);
+    PERF_CAMERA_ATRACE_PARAM3("sof.sequence", meta->buffer->sequence, "csi2_port", meta->buffer->csi2_port, \
+                    "virtual_channel", meta->buffer->virtual_channel);
   }
   return GST_FLOW_OK;
 }
@@ -581,7 +582,8 @@ gst_camerasrc_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buf
   }
   GST_DEBUG_OBJECT(camerasrc, "release_buffer buffer %p\n", buffer);
   {
-    PERF_CAMERA_ATRACE_PARAM1("sof.sequence", meta->buffer->sequence);
+    PERF_CAMERA_ATRACE_PARAM3("sof.sequence", meta->buffer->sequence, "csi2_port", meta->buffer->csi2_port, \
+                    "virtual_channel", meta->buffer->virtual_channel);
   }
 }
 
