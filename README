@@ -41,25 +41,73 @@
 #  Boston, MA 02111-1307, USA.
 #
 
--------------
-Building icamerasrc:(for now, you also need to clone and buildup libcamhal repo as well)
+User Guide
+        1. Setup environment
+        2. Configure
+        3. Build icamerasrc with Makefile
+        4. Build and install icamerasrc RPM
+        5. Running Gstreamer pipeline with icamerasrc
 
-   Prerequisite: Make sure you have installed camera HAL successfully.
+Setup environment
+=============
 
-   autoreconf --install
+    Prerequisite packages:
+        Ubuntu 14.04
+        glib-2.0
+        gobject-2.0
+        gstreamer-1.0(Version 1.7.9 is preferred)
+        libcamhal
+        autoconf
+        libtool
 
-   ./configure --libdir=/usr/lib64
+Configure
+=============
 
-   make
+        autoreconf --install
 
-   make install
+        ./configure -I$libcamhal_dir/include -I$libcamhal_dir/include/api -I$libcamhal_dir/include/utils LDFLAGS=-L$libcamhal_dir/lib
 
--------------
-Generate RPM package from source and install RPM on target host
+Build icamerasrc with Makefile
+=============
 
-   #Please refer to rpm/README
+        make clean
 
--------------
-Running Tests:
+        make -j
 
-   #Please refer to test/README
+        sudo make install
+
+Build and install icamerasrc RPM
+=============
+
+    This step is taken after building successed
+
+    Build RPM:
+        make rpm (RPM package is generated in rpm/)
+
+    Install RPM:
+        rpm -ivh icamerasrc-*.rpm
+
+Running Gstreamer pipeline with icamerasrc
+=============
+
+    To capture from tpg @YUYV_1080p:
+        gst-launch-1.0 icamerasrc device-name=tpg ! video/x-raw,format=YUY2,width=1920,height=1080 ! vaapipostproc ! vaapisink
+
+    To capture from mondello @UYVY_1080p:
+        gst-launch-1.0 icamerasrc device-name=mondello ! video/x-raw,format=UYVY,width=1080,height=1080 ! vaapipostproc ! vaapisink
+
+    To capture from mondello @UYVY_1080i:
+        gst-launch-1.0 icamerasrc device-name=mondello interlace-mode=alternate deinterlace_method=sw_bob ! video/x-raw,format=UYVY,width=1920,height=1080 ! vaapipostproc ! vaapisink
+
+    To capture from imx185 @NV12_1080p:
+        gst-launch-1.0 icamerasrc device-name=imx185 ! video/x-raw,format=NV12,width=1920,height=1080 ! vaapipostproc ! vaapisink
+
+    To capture from Dual mondello @UYVY_1080P + @UYVY_720p:
+        gst-launch-1.0 icamerasrc device-name=mondello ! video/x-raw,format=UYVY,width=1920,height=1080 ! filesink location=stream1_1080p \
+                       icamerasrc device-name=mondello-2 ! video/x-raw,format=UYVY,width=1280,height=720 ! filesink location=stream2_720p
+
+    To capture from Virtual Channel @UYVY_1080P + @UYVY_720P + @UYVY_576p + @UYVY_640x480p
+        gst-launch-1.0 icamerasrc num-vc=4 device-name=aggregator ! video/x-raw,format=UYVY,width=1920,height=1080 ! filesink location=stream1_1080p \
+                       icamerasrc num-vc=4 device-name=aggregator-2 ! video/x-raw,format=UYVY,width=1280,height=720 ! filesink location=stream2_720p \
+                       icamerasrc num-vc=4 device-name=aggregator-3 ! video/x-raw,format=UYVY,width=720,height=576 ! filesink location=stream3_576p \
+                       icamerasrc num-vc=4 device-name=aggregator-4 ! video/x-raw,format=UYVY,width=640,height=480 ! filesink location=stream4_vga

@@ -175,7 +175,7 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
     gst_object_unref (pool->allocator);
   pool->allocator = NULL;
 
-  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA) {
+  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_EXPORT) {
     pool->allocator = gst_dmabuf_allocator_new ();
   } else {
     pool->allocator = allocator;
@@ -236,29 +236,50 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
   GST_INFO("@%s\n",__func__);
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL(bpool);
   Gstcamerasrc *camerasrc = pool->src;
+  gboolean ret;
 
   /* Calculate max/min/average fps */
   if (camerasrc->print_fps) {
      camerasrc->fps_debug.av_fps = (camerasrc->fps_debug.buf_count-FPS_BUF_COUNT_START)/(camerasrc->fps_debug.sum_time/1000000);
      if (camerasrc->fps_debug.buf_count <= FPS_BUF_COUNT_START) {
         g_print("num-buffers value is too low, should be at least %d\n\n",FPS_BUF_COUNT_START);
-        camerasrc->print_fps=false;
      } else if (camerasrc->fps_debug.max_fps == 0 || camerasrc->fps_debug.min_fps == 0) {
         // This means that pipeline runtime is less than 2 seconds,no update of max_fps and min_fps
         g_print("Average fps is:%.4f\n\n",camerasrc->fps_debug.av_fps);
-        camerasrc->print_fps=false;
      } else {
         g_print("\nTotal frame is:%g\n",camerasrc->fps_debug.buf_count);
         g_print("\nMax fps is:%.4f,Minimum fps is:%.4f,Average fps is:%.4f\n\n",
                      camerasrc->fps_debug.max_fps,
                      camerasrc->fps_debug.min_fps,
                      camerasrc->fps_debug.av_fps);
-        camerasrc->print_fps=false;
      }
+     camerasrc->print_fps=false;
   }
 
-  gboolean ret;
+  if (camerasrc->camera_open) {
+    camera_device_stop(camerasrc->device_id);
+    camera_device_close(camerasrc->device_id);
+    camerasrc->stream_id = -1;
+
+    if (camerasrc->downstream_pool)
+      gst_object_unref(camerasrc->downstream_pool);
+
+    camerasrc->camera_open = false;
+  }
+
+  if (pool->allocator)
+    gst_object_unref(pool->allocator);
+
+  /* free buffers in the queue */
   ret = GST_BUFFER_POOL_CLASS(parent_class)->stop(bpool);
+
+  /* free the remaining buffers */
+  for (int n = 0; n < pool->number_allocated; n++)
+    gst_camerasrc_buffer_pool_free_buffer (bpool, pool->buffers[n]);
+
+  pool->number_allocated = 0;
+  g_free(pool->buffers);
+  pool->buffers = NULL;
   return ret;
 }
 
@@ -281,6 +302,9 @@ gst_camerasrc_get_video_format(int format)
       break;
     case V4L2_PIX_FMT_BGR24:
       videoFmt = GST_VIDEO_FORMAT_BGR;
+      break;
+    case V4L2_PIX_FMT_RGB565:
+      videoFmt = GST_VIDEO_FORMAT_RGB16;
       break;
     case V4L2_PIX_FMT_XBGR32:
       videoFmt = GST_VIDEO_FORMAT_BGRx;
@@ -310,8 +334,10 @@ gst_camerasrc_set_meta(Gstcamerasrc *camerasrc, GstBuffer *alloc_buffer)
       stride[i] = camerasrc->bpl;
       offs = stride[i] * camerasrc->streams[0].height;
   }
+
   if (camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE)
       videoFlags = GST_VIDEO_FRAME_FLAG_INTERLACED;
+
   GST_DEBUG_OBJECT(camerasrc, "set Buffer meta: videoFlage: %d, videofmt: %d, width: %d, \
           heigh: %d, n_planes: %d, offset: %d, stride: %d\n", videoFlags, videoFmt,
           camerasrc->streams[0].width,camerasrc->streams[0].height, n_planes, (int)offset[0], (int)stride[0]);
@@ -345,24 +371,19 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
         return GST_FLOW_ERROR;
       }
       meta->buffer->s = camerasrc->streams[0];
-      if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_USERPTR) {
-          ret = posix_memalign(&meta->buffer->addr, getpagesize(), pool->size);
-          meta->buffer->s.memType = V4L2_MEMORY_USERPTR;
-      } else {
-          meta->buffer->s.memType = V4L2_MEMORY_MMAP;
-          meta->buffer->flags = 0;
-          ret = camera_device_allocate_memory(camerasrc->device_id, meta->buffer);
-      }
+
+      ret = posix_memalign(&meta->buffer->addr, getpagesize(), pool->size);
+      meta->buffer->s.memType = V4L2_MEMORY_USERPTR;
+
       if (ret < 0) {
           GST_ERROR_OBJECT(camerasrc, "failed to alloc buffer io-mode %d", camerasrc->io_mode);
           return GST_FLOW_ERROR;
       }
 
       meta->mem = meta->buffer->addr;
-
       gst_buffer_append_memory (alloc_buffer, gst_memory_new_wrapped (GST_MEMORY_FLAG_NO_SHARE, meta->mem, pool->size, 0, pool->size, NULL, NULL));
-    break;
-    case GST_CAMERASRC_IO_MODE_DMA:
+      break;
+    case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
       int dmafd;
       alloc_buffer = gst_buffer_new();
       meta = GST_CAMERASRC_META_ADD(alloc_buffer);
@@ -382,14 +403,14 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
       if ((dmafd = dup (meta->buffer->dmafd)) < 0) {
         return GST_FLOW_ERROR;
       }
-      mem = gst_dmabuf_allocator_alloc (pool->allocator, dmafd, pool->size);
 
+      mem = gst_dmabuf_allocator_alloc (pool->allocator, dmafd, pool->size);
       gst_buffer_append_memory (alloc_buffer, mem);
-    break;
+      break;
     case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
       ret = gst_buffer_pool_acquire_buffer(camerasrc->downstream_pool, &alloc_buffer, NULL);
       if (ret != GST_FLOW_OK) {
-        GST_ERROR_OBJECT(camerasrc, "failed to acquire buffer from downstream pool");
+        GST_ERROR_OBJECT(camerasrc, "failed to acquire buffer from downstream buffer pool");
         goto err_acquire_buffer;
       }
       meta = GST_CAMERASRC_META_ADD(alloc_buffer);
@@ -399,9 +420,10 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
       if (meta->buffer == NULL) {
         return GST_FLOW_ERROR;
       }
+
       meta->buffer->dmafd = dup(gst_dmabuf_memory_get_fd(mem));
       meta->buffer->s.memType = V4L2_MEMORY_DMABUF;
-    break;
+      break;
     default:
       GST_ERROR_OBJECT(camerasrc, "Cannot find corresponding io-mode in %s, please verify if this mode is valid.",__FUNCTION__);
       goto err_io_mode;
@@ -420,8 +442,16 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
   return GST_FLOW_OK;
 
 err_acquire_buffer:
+  {
+    gst_buffer_unref (alloc_buffer);
+    return GST_FLOW_ERROR;
+  }
 err_io_mode:
-  return GST_FLOW_ERROR;
+  {
+    alloc_buffer = NULL;
+    g_assert_not_reached ();
+    return GST_FLOW_ERROR;
+  }
 }
 
 static void
@@ -435,13 +465,19 @@ gst_camerasrc_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer
 
   meta = GST_CAMERASRC_META_GET(buffer);
 
-  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_USERPTR) {
-    if (meta->buffer->addr)
-      free(meta->buffer->addr);
-  } else if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA) {
-    if (meta->buffer->dmafd)
-      close(meta->buffer->dmafd);
+  switch (camerasrc->io_mode) {
+    case GST_CAMERASRC_IO_MODE_USERPTR:
+      if (meta->buffer->addr)
+        free(meta->buffer->addr);
+      break;
+    case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
+      if (meta->buffer->dmafd)
+        close(meta->buffer->dmafd);
+      break;
+    default:
+      break;
   }
+
   free(meta->buffer);
   pool->buffers[meta->index] = NULL;
   GST_DEBUG_OBJECT(camerasrc, "free_buffer buffer %p\n", buffer);

@@ -133,6 +133,11 @@ create_structure (guint32 fourcc)
            "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_BGR), (void *)NULL);
     }
     break;
+    case V4L2_PIX_FMT_RGB565:{
+      structure = gst_structure_new ("video/x-raw",
+           "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_RGB16), (void *)NULL);
+    }
+    break;
     case V4L2_PIX_FMT_XBGR32:{
       structure = gst_structure_new ("video/x-raw",
             "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_BGRx), (void *)NULL);
@@ -215,19 +220,19 @@ update_main_resolution(int format,
     vector <cameraSrc_Main_Res_Range> &main_res_range)
 {
   cameraSrc_Main_Res_Range r;
-  gboolean need_update = true;
+  gboolean is_new_format = true;
 
   for (auto&main_res : main_res_range) {
     if (main_res.format == format) {
+      is_new_format = false;
       main_res.range.max_w = MAX(main_res.range.max_w, res_range.max_w);
       main_res.range.max_h = MAX(main_res.range.max_h, res_range.max_h);
       main_res.range.min_w = MIN(main_res.range.min_w, res_range.min_w);
       main_res.range.min_h = MIN(main_res.range.min_h, res_range.min_h);
-      need_update = false;
     }
   }
 
-  if (need_update) {
+  if (is_new_format) {
     r.format = format;
     r.range = res_range;
     main_res_range.push_back(r);
@@ -245,7 +250,6 @@ register_format_and_resolution(const stream_array_t configs,
 {
     PERF_CAMERA_ATRACE();
     int currentFormat = -1;
-    int sum = 0;
     size_t next_res_idx = 0;
     cameraSrc_Res_Range res_range;
     camera_resolution_t r;
@@ -259,11 +263,12 @@ register_format_and_resolution(const stream_array_t configs,
         r.width = configs[j].width;
         r.height = configs[j].height;
         fmt_res.push_back(r);
-        sum++;
       }
 
-      if ((next_res_idx < configs.size() && currentFormat != configs[next_res_idx].format) ||
-          next_res_idx == configs.size()) {
+      //calculate the main resolution for a single format
+      if (fmt_res.size() > 0 &&
+                      ((next_res_idx < configs.size() && currentFormat != configs[next_res_idx].format) ||
+                      next_res_idx == configs.size())) {
         get_max_and_min_resolution(fmt_res, &res_range);
         update_main_resolution(currentFormat, res_range, main_res_range);
         fmt_res.clear();
@@ -289,6 +294,7 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
     stream_array_t configs;
     camera_info_t info;
 
+    //get configuration of camera
     ret = get_camera_info(i, info);
     if (ret != 0) {
       GST_ERROR_OBJECT(camerasrc_class, "failed to get_camera_info from libcamhal %d\n", ret);

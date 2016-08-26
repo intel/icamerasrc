@@ -74,7 +74,7 @@ G_BEGIN_DECLS
 /* Default value of enum type property 'iris-mode':auto */
 #define DEFAULT_PROP_IRIS_MODE GST_CAMERASRC_IRIS_MODE_AUTO
 /* Default value of enum type property 'wdr-mode':off */
-#define DEFAULT_PROP_WDR_MODE GST_CAMERASRC_WDR_MODE_OFF
+#define DEFAULT_PROP_WDR_MODE GST_CAMERASRC_WDR_MODE_AUTO
 /* Default value of enum type property 'blc-area-mode':off */
 #define DEFAULT_PROP_BLC_AREA_MODE GST_CAMERASRC_BLC_AREA_MODE_OFF
 /* Default value of enum type property 'awb-mode':auto */
@@ -124,7 +124,7 @@ typedef enum
 {
   GST_CAMERASRC_IO_MODE_USERPTR = 0,
   GST_CAMERASRC_IO_MODE_MMAP = 1,
-  GST_CAMERASRC_IO_MODE_DMA = 2,
+  GST_CAMERASRC_IO_MODE_DMA_EXPORT = 2,
   GST_CAMERASRC_IO_MODE_DMA_IMPORT = 3,
 } GstCamerasrcIoMode;
 
@@ -143,9 +143,9 @@ typedef enum
 
 typedef enum
 {
-  GST_CAMERASRC_WDR_MODE_OFF = 0,
+  GST_CAMERASRC_WDR_MODE_AUTO = 0,
   GST_CAMERASRC_WDR_MODE_ON = 1,
-  GST_CAMERASRC_WDR_MODE_AUTO = 2,
+  GST_CAMERASRC_WDR_MODE_OFF = 2,
 } GstCamerasrcWdrMode;
 
 typedef enum

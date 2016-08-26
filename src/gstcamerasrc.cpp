@@ -177,7 +177,6 @@ gst_camerasrc_interlace_field_get_type(void)
         g_enum_register_static ("GstCamerasrcInterlacMode", method_types);
   }
   return interlace_field_type;
-
 }
 
 static GType
@@ -214,8 +213,8 @@ gst_camerasrc_io_mode_get_type(void)
         "UserPtr", "userptr"},
     {GST_CAMERASRC_IO_MODE_MMAP,
         "MMAP", "mmap"},
-    {GST_CAMERASRC_IO_MODE_DMA,
-        "DMA", "dma"},
+    {GST_CAMERASRC_IO_MODE_DMA_EXPORT,
+        "DMA export", "dma"},
     {GST_CAMERASRC_IO_MODE_DMA_IMPORT,
         "DMA import", "dma_import"},
     {0, NULL, NULL},
@@ -290,12 +289,12 @@ gst_camerasrc_wdr_mode_get_type(void)
   static GType wdr_mode_type = 0;
 
   static const GEnumValue method_types[] = {
-    {GST_CAMERASRC_WDR_MODE_OFF,
-          "Non-WDR mode", "off"},
-    {GST_CAMERASRC_WDR_MODE_ON,
-          "WDR mode", "on"},
     {GST_CAMERASRC_WDR_MODE_AUTO,
           "Auto", "auto"},
+    {GST_CAMERASRC_WDR_MODE_ON,
+          "WDR mode", "on"},
+    {GST_CAMERASRC_WDR_MODE_OFF,
+          "Non-WDR mode", "off"},
      {0, NULL, NULL},
    };
 
@@ -548,6 +547,7 @@ gst_camerasrc_antibanding_mode_get_type(void)
 static void
 gst_camerasrc_dispose(GObject *object)
 {
+  GST_INFO("@%s\n",__func__);
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
@@ -555,14 +555,9 @@ static void
 gst_camerasrc_finalize (Gstcamerasrc *camerasrc)
 {
   PERF_CAMERA_ATRACE();
-  if (camerasrc->device_id >= 0 && camerasrc->camera_open) {
-    camera_device_stop(camerasrc->device_id);
-    camerasrc->stream_id = -1;
-    camera_device_close(camerasrc->device_id);
-  }
+  GST_INFO("@%s\n",__func__);
 
   camera_hal_deinit();
-  camerasrc->camera_open = false;
   delete camerasrc->param;
   camerasrc->param = NULL;
 
@@ -988,6 +983,51 @@ gst_camerasrc_parse_white_point(Gstcamerasrc *src, gchar *wp_str, camera_coordin
   return 0;
 }
 
+static gboolean
+gst_camerasrc_check_device_match(int device_id, const char* device_name)
+{
+  int count = get_number_of_cameras();
+  camera_info_t cam_info;
+  int ret = 0;
+
+  for (int i = 0; i < count; i++) {
+    ret = get_camera_info(i, cam_info);
+
+    if (ret < 0) {
+      g_print("failed to get device name.");
+      return FALSE;
+    }
+    if (strcmp(device_name, cam_info.name) == 0) {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static int
+gst_camerasrc_get_device_id(const char* device_name)
+{
+  int count = get_number_of_cameras();
+  camera_info_t cam_info;
+  int ret = 0, dev_id = -1;
+
+  for (int i = 0; i < count; i++) {
+    ret = get_camera_info(i, cam_info);
+
+    if (ret < 0) {
+      g_print("failed to get device name.");
+      return -1;
+    }
+    if (strcmp(device_name, cam_info.name) == 0) {
+       dev_id = i;
+       break;
+    }
+  }
+
+  return dev_id;
+}
+
 static void
 gst_camerasrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -1036,6 +1076,20 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_INTERLACE_MODE:
       manual_setting = false;
       src->interlace_field = g_value_get_enum (value);
+      /* W/A: When choose interlace mode,
+       *      switch to another camera ID.
+       */
+      if (src->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE) {
+        if (gst_camerasrc_check_device_match(src->device_id, "mondello"))
+          src->device_id = gst_camerasrc_get_device_id("mondello-be");
+        else if (gst_camerasrc_check_device_match(src->device_id, "mondello-2"))
+          src->device_id = gst_camerasrc_get_device_id("mondello-2-be");
+
+        if (src->device_id < 0) {
+          GST_ERROR_OBJECT(src, "Couldn't find corresponding device!");
+          return;
+        }
+      }
       break;
     case PROP_DEINTERLACE_METHOD:
       manual_setting = false;
@@ -1110,8 +1164,14 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       /* W/A: When wdr-mode is on and specific camera is selected,
        *      switch to another camera ID and pass on to HAL.
        */
-      if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON && src->device_id == 3)
-        src->device_id = 23;
+      if ((src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON ||
+          src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_OFF) &&
+          gst_camerasrc_check_device_match(src->device_id, "imx185")) {
+        src->device_id = gst_camerasrc_get_device_id("imx185-hdr");
+        if (src->device_id < 0)
+          GST_ERROR_OBJECT(src, "Couldn't find corresponding device!");
+          return;
+      }
       break;
     case PROP_BLC_AREA_MODE:
       src->param->setBlcAreaMode((camera_blc_area_mode_t)g_value_get_enum(value));
@@ -1487,6 +1547,9 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
       case GST_VIDEO_FORMAT_BGR:
         fourcc = V4L2_PIX_FMT_BGR24;
         break;
+      case GST_VIDEO_FORMAT_RGB16:
+        fourcc = V4L2_PIX_FMT_RGB565;
+        break;
       case GST_VIDEO_FORMAT_BGRx:
         fourcc = V4L2_PIX_FMT_XBGR32;
         break;
@@ -1527,7 +1590,7 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
     case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
       camerasrc->streams[0].memType = V4L2_MEMORY_DMABUF;
       break;
-    case GST_CAMERASRC_IO_MODE_DMA:
+    case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
     case GST_CAMERASRC_IO_MODE_MMAP:
       camerasrc->streams[0].memType = V4L2_MEMORY_MMAP;
       break;
@@ -1620,6 +1683,9 @@ gst_camerasrc_stop(GstBaseSrc *basesrc)
 {
   PERF_CAMERA_ATRACE();
   GST_INFO("@%s\n",__func__);
+  Gstcamerasrc * camerasrc = GST_CAMERASRC(basesrc);
+  if (camerasrc->pool)
+    gst_object_unref(camerasrc->pool);
   return TRUE;
 }
 
@@ -1694,7 +1760,7 @@ gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query)
   gboolean update;
 
   switch (camerasrc->io_mode) {
-    case GST_CAMERASRC_IO_MODE_DMA:
+    case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
     case GST_CAMERASRC_IO_MODE_MMAP:
     case GST_CAMERASRC_IO_MODE_USERPTR: {
         if(gst_query_get_n_allocation_pools(query)>0){
@@ -1729,6 +1795,7 @@ gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query)
         gst_object_unref (camerasrc->downstream_pool);
 
       camerasrc->downstream_pool = (GstBufferPool*)gst_object_ref(pool);
+
       gst_object_unref (pool);
       pool = (GstBufferPool*)gst_object_ref(camerasrc->pool);
 
