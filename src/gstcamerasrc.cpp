@@ -87,6 +87,7 @@ enum
   PROP_DEVICE_ID,
   PROP_IO_MODE,
   PROP_NUM_VC,
+  PROP_DEBUG_LEVEL,
   /* Image Adjust-ment*/
   PROP_SHARPNESS,
   PROP_BRIGHTNESS,
@@ -192,6 +193,8 @@ gst_camerasrc_deinterlace_method_get_type(void)
         "software bob", "sw_bob"},
     {GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB,
         "hardware", "hw_bob"},
+    {GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE,
+        "software weave", "sw_weave"},
     {0, NULL, NULL},
   };
 
@@ -397,8 +400,14 @@ gst_camerasrc_scene_mode_get_type(void)
   static const GEnumValue method_types[] = {
     {GST_CAMERASRC_SCENE_MODE_AUTO,
           "Auto", "auto"},
+    {GST_CAMERASRC_SCENE_MODE_HDR,
+          "HDR", "hdr"},
+    {GST_CAMERASRC_SCENE_MODE_ULL,
+          "ULL", "ull"},
+    {GST_CAMERASRC_SCENE_MODE_NORMAL,
+          "NORMAL", "normal"},
     {GST_CAMERASRC_SCENE_MODE_INDOOR,
-          "Indorr", "indoor"},
+          "Indoor", "indoor"},
     {GST_CAMERASRC_SCENE_MODE_OUTOOR,
           "Outdoor", "outdoor"},
     {GST_CAMERASRC_SCENE_MODE_DISABLED,
@@ -617,6 +626,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_int("num-vc","Number Virtual Channel","Number of enabled Virtual Channel",
       0,8,0, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property(gobject_class,PROP_DEBUG_LEVEL,
+      g_param_spec_int("debug-level","debug-level","Debug log print level(0 ~ 1<20)",
+        0,1048576,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_IO_MODE,
       g_param_spec_enum ("io-mode", "IO mode", "The memory types of the frame buffer",
           gst_camerasrc_io_mode_get_type(), DEFAULT_PROP_IO_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -810,6 +823,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->device_id = DEFAULT_PROP_DEVICE_ID;
   camerasrc->camera_open = false;
   camerasrc->num_vc = 0;
+  camerasrc->debugLevel = 0;
 
   /* set default value for 3A manual control*/
   camerasrc->param = new Parameters;
@@ -997,7 +1011,8 @@ gst_camerasrc_check_device_match(int device_id, const char* device_name)
       g_print("failed to get device name.");
       return FALSE;
     }
-    if (strcmp(device_name, cam_info.name) == 0) {
+    if (strcmp(device_name, cam_info.name) == 0 &&
+        device_id == i) {
       return TRUE;
     }
   }
@@ -1028,6 +1043,13 @@ gst_camerasrc_get_device_id(const char* device_name)
   return dev_id;
 }
 
+static int
+gst_camerasrc_parse_framerate_value(int enum_value)
+{
+  const int fps_arr[4] = {25, 30, 50, 60};
+  return fps_arr[enum_value];
+}
+
 static void
 gst_camerasrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -1035,6 +1057,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
   PERF_CAMERA_ATRACE();
   Gstcamerasrc *src = GST_CAMERASRC (object);
   int ret = 0;
+  int enum_value = -1;
 
   gboolean manual_setting = true;
   camera_awb_gains_t awb_gain;
@@ -1076,20 +1099,6 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_INTERLACE_MODE:
       manual_setting = false;
       src->interlace_field = g_value_get_enum (value);
-      /* W/A: When choose interlace mode,
-       *      switch to another camera ID.
-       */
-      if (src->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE) {
-        if (gst_camerasrc_check_device_match(src->device_id, "mondello"))
-          src->device_id = gst_camerasrc_get_device_id("mondello-be");
-        else if (gst_camerasrc_check_device_match(src->device_id, "mondello-2"))
-          src->device_id = gst_camerasrc_get_device_id("mondello-2-be");
-
-        if (src->device_id < 0) {
-          GST_ERROR_OBJECT(src, "Couldn't find corresponding device!");
-          return;
-        }
-      }
       break;
     case PROP_DEINTERLACE_METHOD:
       manual_setting = false;
@@ -1111,6 +1120,10 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_NUM_VC:
       manual_setting = false;
       src->num_vc = g_value_get_int(value);
+      break;
+    case PROP_DEBUG_LEVEL:
+      src->param->updateDebugLevel();
+      src->debugLevel = g_value_get_int (value);
       break;
     case PROP_SHARPNESS:
       src->param->getImageEnhancement(img_enhancement);
@@ -1162,15 +1175,25 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->param->setWdrMode((camera_wdr_mode_t)g_value_get_enum(value));
       src->man_ctl.wdr_mode = g_value_get_enum (value);
       /* W/A: When wdr-mode is on and specific camera is selected,
-       *      switch to another camera ID and pass on to HAL.
+       *      use scene mode to override wdr mode
+       *      meanwhile, switch to another camera ID and pass on to HAL
        */
-      if ((src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON ||
-          src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_OFF) &&
-          gst_camerasrc_check_device_match(src->device_id, "imx185")) {
-        src->device_id = gst_camerasrc_get_device_id("imx185-hdr");
-        if (src->device_id < 0)
-          GST_ERROR_OBJECT(src, "Couldn't find corresponding device!");
-          return;
+      if (gst_camerasrc_check_device_match(src->device_id, "imx185")) {
+          if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_AUTO)
+            enum_value = GST_CAMERASRC_SCENE_MODE_AUTO;
+          else if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON)
+            enum_value = GST_CAMERASRC_SCENE_MODE_HDR;
+          else if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_OFF)
+            enum_value = GST_CAMERASRC_SCENE_MODE_ULL;
+
+          src->param->setSceneMode((camera_scene_mode_t)enum_value);
+          src->man_ctl.scene_mode = enum_value;
+
+          src->device_id = gst_camerasrc_get_device_id("imx185-hdr");
+          if (src->device_id < 0) {
+            GST_ERROR_OBJECT(src, "Couldn't find corresponding device!");
+            return;
+          }
       }
       break;
     case PROP_BLC_AREA_MODE:
@@ -1216,8 +1239,8 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->man_ctl.sensor_resolution = g_value_get_enum (value);
       break;
     case PROP_FPS:
-      //didn't implement in hal
       src->man_ctl.fps = g_value_get_enum (value);
+      src->param->setFrameRate(gst_camerasrc_parse_framerate_value(src->man_ctl.fps));
       break;
     case PROP_AE_MODE:
       src->param->setAeMode((camera_ae_mode_t)g_value_get_enum(value));
@@ -1348,6 +1371,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_NUM_VC:
       g_value_set_int(value, src->num_vc);
+      break;
+    case PROP_DEBUG_LEVEL:
+      g_value_set_int(value, src->debugLevel);
       break;
     case PROP_SHARPNESS:
       g_value_set_int (value, src->man_ctl.sharpness);
@@ -1550,6 +1576,9 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
       case GST_VIDEO_FORMAT_RGB16:
         fourcc = V4L2_PIX_FMT_RGB565;
         break;
+      case GST_VIDEO_FORMAT_NV16:
+        fourcc = V4L2_PIX_FMT_NV16;
+        break;
       case GST_VIDEO_FORMAT_BGRx:
         fourcc = V4L2_PIX_FMT_XBGR32;
         break;
@@ -1606,6 +1635,35 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
   return TRUE;
 }
 
+/*
+ * W/A: For some projects, the camera hal version is different, and the operation mode
+ * isn't defined. So hard code to use actual value here temporary.
+ */
+static void
+gst_camerasrc_get_configuration_mode(Gstcamerasrc* camerasrc, stream_config_t *stream_list)
+{
+    int scene_mode = camerasrc->man_ctl.scene_mode;
+
+    switch(scene_mode) {
+      case GST_CAMERASRC_SCENE_MODE_AUTO:
+        stream_list->operation_mode = 0x8001;
+        break;
+      case GST_CAMERASRC_SCENE_MODE_HDR:
+        stream_list->operation_mode = 0x8002;
+        break;
+      case GST_CAMERASRC_SCENE_MODE_ULL:
+        stream_list->operation_mode = 0x8003;
+        break;
+      case GST_CAMERASRC_SCENE_MODE_NORMAL:
+        stream_list->operation_mode = 0;
+        break;
+      default:
+        stream_list->operation_mode = 0x8001;
+        GST_ERROR_OBJECT(camerasrc, "%s, the scene mode is invalid",__FUNCTION__);
+        break;
+    }
+}
+
 static gboolean
 gst_camerasrc_set_caps(GstBaseSrc *src, GstCaps *caps)
 {
@@ -1628,6 +1686,7 @@ gst_camerasrc_set_caps(GstBaseSrc *src, GstCaps *caps)
     return FALSE;
   }
 
+  gst_camerasrc_get_configuration_mode(camerasrc, &camerasrc->stream_list);
   ret = camera_device_config_streams(camerasrc->device_id,  &camerasrc->stream_list);
   if(ret < 0) {
     GST_ERROR_OBJECT(camerasrc, "failed to add stream for format %d %dx%d.", camerasrc->streams[0].format,

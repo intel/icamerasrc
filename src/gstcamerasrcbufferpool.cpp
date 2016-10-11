@@ -116,6 +116,7 @@ static void gst_camerasrc_buffer_pool_release_buffer (GstBufferPool * bpool, Gst
 static GstFlowReturn gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
     GstBufferPoolAcquireParams * params);
 static void gst_camerasrc_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer);
+static void gst_camerasrc_free_weave_buffer (Gstcamerasrc *src);
 
 static void
 gst_camerasrc_buffer_pool_finalize (GObject * object)
@@ -208,6 +209,8 @@ gst_camerasrc_buffer_pool_start (GstBufferPool * bpool)
     camerasrc->fps_debug.init_max_min_fps = true;
   }
 
+  camerasrc->first_frame = true;
+
   pool->buffers = g_new0 (GstBuffer *, pool->number_of_buffers);
   GST_DEBUG_OBJECT(camerasrc, "start pool %p pool->buffers %p %d\n", pool, pool->buffers, pool->number_of_buffers);
 
@@ -273,6 +276,11 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
   /* free buffers in the queue */
   ret = GST_BUFFER_POOL_CLASS(parent_class)->stop(bpool);
 
+  /* free topfield buffer and bottomfield buffer, both for temp storage */
+  if (camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE &&
+        camerasrc->deinterlace_method == GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE)
+    gst_camerasrc_free_weave_buffer(camerasrc);
+
   /* free the remaining buffers */
   for (int n = 0; n < pool->number_allocated; n++)
     gst_camerasrc_buffer_pool_free_buffer (bpool, pool->buffers[n]);
@@ -305,6 +313,9 @@ gst_camerasrc_get_video_format(int format)
       break;
     case V4L2_PIX_FMT_RGB565:
       videoFmt = GST_VIDEO_FORMAT_RGB16;
+      break;
+    case V4L2_PIX_FMT_NV16:
+      videoFmt = GST_VIDEO_FORMAT_NV16;
       break;
     case V4L2_PIX_FMT_XBGR32:
       videoFmt = GST_VIDEO_FORMAT_BGRx;
@@ -347,6 +358,31 @@ gst_camerasrc_set_meta(Gstcamerasrc *camerasrc, GstBuffer *alloc_buffer)
           camerasrc->streams[0].width, camerasrc->streams[0].height, n_planes, offset, stride);
 }
 
+static int
+gst_camerasrc_alloc_weave_buffer(Gstcamerasrc *camerasrc, gint size)
+{
+  int ret = 0;
+
+  if (camerasrc->top == NULL && camerasrc->bottom == NULL &&
+        camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE &&
+        camerasrc->deinterlace_method == GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE) {
+    camerasrc->top= (camera_buffer_t *)calloc(1, sizeof(camera_buffer_t));
+    camerasrc->bottom = (camera_buffer_t *)calloc(1, sizeof(camera_buffer_t));
+    ret = posix_memalign(&camerasrc->top->addr, getpagesize(), size);
+    if (ret < 0) {
+      GST_ERROR_OBJECT(camerasrc, "failed to alloc topfield buffer for weave method");
+      return GST_FLOW_ERROR;
+    }
+    ret = posix_memalign(&camerasrc->bottom->addr, getpagesize(), size);
+    if (ret < 0) {
+      GST_ERROR_OBJECT(camerasrc, "failed to alloc bottomfield buffer for weave method");
+      return GST_FLOW_ERROR;
+    }
+  }
+
+  return ret;
+}
+
 static GstFlowReturn
 gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buffer,
     GstBufferPoolAcquireParams * params)
@@ -358,22 +394,35 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
   GstBuffer *alloc_buffer = NULL;
   GstCamerasrcMeta *meta;
   GstMemory *mem = NULL;
-  int ret;
+  int ret = 0;
 
   switch (camerasrc->io_mode) {
     case GST_CAMERASRC_IO_MODE_MMAP:
     case GST_CAMERASRC_IO_MODE_USERPTR:
       alloc_buffer = gst_buffer_new();
       meta = GST_CAMERASRC_META_ADD(alloc_buffer);
-
       meta->buffer = (camera_buffer_t *)calloc(1, sizeof(camera_buffer_t));
-      if (meta->buffer == NULL) {
+      if (meta->buffer == NULL)
+        return GST_FLOW_ERROR;
+
+      /* Allocate temp buffers: top(only top field), bottom(only bottom field)
+       * in order to do deinterlace weaving and fill in metadata */
+      ret = gst_camerasrc_alloc_weave_buffer(camerasrc, pool->size);
+      if (ret < 0) {
+        GST_ERROR_OBJECT(camerasrc, "failed to alloc buffer io-mode %d", camerasrc->io_mode);
         return GST_FLOW_ERROR;
       }
+
       meta->buffer->s = camerasrc->streams[0];
 
-      ret = posix_memalign(&meta->buffer->addr, getpagesize(), pool->size);
-      meta->buffer->s.memType = V4L2_MEMORY_USERPTR;
+      if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_MMAP) {
+        meta->buffer->s.memType = V4L2_MEMORY_MMAP;
+        meta->buffer->flags = 0;
+        ret = camera_device_allocate_memory(camerasrc->device_id, meta->buffer);
+      } else {
+        meta->buffer->s.memType = V4L2_MEMORY_USERPTR;
+        ret = posix_memalign(&meta->buffer->addr, getpagesize(), pool->size);
+      }
 
       if (ret < 0) {
           GST_ERROR_OBJECT(camerasrc, "failed to alloc buffer io-mode %d", camerasrc->io_mode);
@@ -423,6 +472,7 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
 
       meta->buffer->dmafd = dup(gst_dmabuf_memory_get_fd(mem));
       meta->buffer->s.memType = V4L2_MEMORY_DMABUF;
+      meta->buffer->flags = 0;
       break;
     default:
       GST_ERROR_OBJECT(camerasrc, "Cannot find corresponding io-mode in %s, please verify if this mode is valid.",__FUNCTION__);
@@ -452,6 +502,23 @@ err_io_mode:
     g_assert_not_reached ();
     return GST_FLOW_ERROR;
   }
+}
+
+static void
+gst_camerasrc_free_weave_buffer (Gstcamerasrc *src)
+{
+  if (src->top->addr)
+    free(src->top->addr);
+
+  if (src->bottom->addr)
+    free(src->bottom->addr);
+
+  free(src->top);
+  free(src->bottom);
+  src->top = NULL;
+  src->bottom = NULL;
+
+  src->deinterlace_method = DEFAULT_DEINTERLACE_METHOD;
 }
 
 static void
@@ -559,24 +626,25 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
   camerasrc->time_end = meta->buffer->timestamp;
 
   switch(meta->buffer->s.field) {
-    case GST_CAMERASRC_INTERLACE_FIELD_ANY: //V4L2_FIELD_ANY
-        break;
-    case GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE: // V4L2_FIELD_ALTERNATE
-        GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
-        GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
-        if (camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_NONE) {
-          ret = gst_camerasrc_deinterlace_frame(camerasrc, meta->buffer);
-          if (ret != 0) {
-              GST_ERROR_OBJECT(camerasrc, "deinterlace frame failed ret %d.\n", ret);
-              return GST_FLOW_ERROR;
-          }
-        }
+    case V4L2_FIELD_ANY:
         break;
     case V4L2_FIELD_TOP:
+        GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
+
+        gst_camerasrc_copy_field(camerasrc, meta->buffer, camerasrc->top);
+        if (camerasrc->first_frame) {
+          gst_camerasrc_copy_field(camerasrc, meta->buffer, camerasrc->bottom);
+        }
+        break;
     case V4L2_FIELD_BOTTOM:
         GST_BUFFER_FLAG_UNSET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
         GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
-        GST_BUFFER_FLAG_SET (gbuffer, GST_VIDEO_BUFFER_FLAG_ONEFIELD);
+
+        gst_camerasrc_copy_field(camerasrc, meta->buffer, camerasrc->bottom);
+        if (camerasrc->first_frame) {
+          gst_camerasrc_copy_field(camerasrc, meta->buffer, camerasrc->top);
+        }
+
         break;
     default:
         GST_BUFFER_FLAG_UNSET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
@@ -584,14 +652,22 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
         break;
   }
 
+  ret = gst_camerasrc_deinterlace_frame(camerasrc, meta->buffer);
+  if (ret != 0) {
+    GST_ERROR_OBJECT(camerasrc, "deinterlace frame failed ret %d.\n", ret);
+    return GST_FLOW_ERROR;
+  }
+
+  camerasrc->first_frame = false;
+
   GST_BUFFER_TIMESTAMP(gbuffer) = timestamp;
   *buffer = gbuffer;
   pool->acquire_buffer_index++;
   GST_DEBUG_OBJECT(camerasrc, "acquire_buffer buffer %p\n", *buffer);
   {
-    PERF_CAMERA_ATRACE_PARAM3("sof.sequence", meta->buffer->sequence, "csi2_port", meta->buffer->csi2_port, \
-                    "virtual_channel", meta->buffer->virtual_channel);
+    PERF_CAMERA_ATRACE_PARAM1("sof.sequence", meta->buffer->sequence);
   }
+
   return GST_FLOW_OK;
 }
 
@@ -607,7 +683,6 @@ gst_camerasrc_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buf
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL (bpool);
   Gstcamerasrc *camerasrc = pool->src;
   int ret = 0;
-
   meta = GST_CAMERASRC_META_GET(buffer);
 
   ret = camera_stream_qbuf(camerasrc->device_id, camerasrc->stream_id, meta->buffer);
@@ -618,9 +693,18 @@ gst_camerasrc_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buf
   }
   GST_DEBUG_OBJECT(camerasrc, "release_buffer buffer %p\n", buffer);
   {
-    PERF_CAMERA_ATRACE_PARAM3("sof.sequence", meta->buffer->sequence, "csi2_port", meta->buffer->csi2_port, \
-                    "virtual_channel", meta->buffer->virtual_channel);
+    PERF_CAMERA_ATRACE_PARAM1("sof.sequence", meta->buffer->sequence);
   }
+}
+
+static int
+gst_camerasrc_get_bpl(int format, int bytes_per_line, int bpp)
+{
+  /* Check if is a planar format */
+  if (gst_camerasrc_isPlanarFormat(format))
+    return ALIGN_64(bytes_per_line)/(bpp/8);
+  else
+    return ALIGN_64(bytes_per_line);
 }
 
 GstBufferPool *
@@ -631,22 +715,24 @@ gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc, GstCaps *caps)
   GstCamerasrcBufferPool *pool;
   GstStructure *s;
   int bpp = 0;
+  int bytes_per_line;
 
   pool = (GstCamerasrcBufferPool *) g_object_new (GST_TYPE_CAMERASRC_BUFFER_POOL, NULL);
 
-  /* if interlace_field and deinterlace_method are set both, camerasrc will do internal deinterlace, so the buffer is double. */
-  if ((camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE)
-          && camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_NONE) {
-    camerasrc->streams[0].size *= 2;
-  }
+  /* Get format bpp */
+  get_frame_size(camerasrc->streams[0].format, camerasrc->streams[0].width,
+                   camerasrc->streams[0].height, camerasrc->streams[0].field, &bpp);
 
-  get_frame_size(camerasrc->streams[0].format, camerasrc->streams[0].width, camerasrc->streams[0].height, camerasrc->streams[0].field, &bpp);
-  camerasrc->bpl = ALIGN_64(camerasrc->streams[0].width * (bpp/8));
+  /* In Gstreamer, image bpl and image stride share the same value */
+  bytes_per_line = camerasrc->streams[0].width * (bpp/8);
+  camerasrc->bpl = gst_camerasrc_get_bpl(camerasrc->streams[0].format, bytes_per_line, bpp);
+
   pool->src = camerasrc;
   camerasrc->pool = GST_BUFFER_POOL(pool);
 
   s = gst_buffer_pool_get_config (GST_BUFFER_POOL_CAST (pool));
-  gst_buffer_pool_config_set_params (s, caps, camerasrc->streams[0].size, MIN_PROP_BUFFERCOUNT, MAX_PROP_BUFFERCOUNT);
+  gst_buffer_pool_config_set_params (s, caps, camerasrc->streams[0].size,
+                   MIN_PROP_BUFFERCOUNT, MAX_PROP_BUFFERCOUNT);
   gst_buffer_pool_set_config (GST_BUFFER_POOL_CAST (pool), s);
 
   return GST_BUFFER_POOL (pool);

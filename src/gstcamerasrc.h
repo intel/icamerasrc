@@ -86,7 +86,7 @@ G_BEGIN_DECLS
 /* Default value of enum type property 'sensor-resolution':1080p */
 #define DEFAULT_PROP_SENSOR_RESOLUTION GST_CAMERASRC_SENSOR_RESOLUTION_1080P
 /* Default value of enum type property 'fps':25 fps */
-#define DEFAULT_PROP_FPS GST_CAMERASRC_FPS_25
+#define DEFAULT_PROP_FPS GST_CAMERASRC_FPS_30
 /* Default value of enum type property 'ae-mode':auto */
 #define DEFAULT_PROP_AE_MODE GST_CAMERASRC_AE_MODE_AUTO
 /* Default value of enum type property 'ae-converge-speed':normal */
@@ -118,6 +118,7 @@ typedef enum
   GST_CAMERASRC_DEINTERLACE_METHOD_NONE = 0,
   GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB = 1,
   GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB = 2,
+  GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE = 3,
 } GstCamerasrcDeinterlaceMethod;
 
 typedef enum
@@ -181,9 +182,12 @@ typedef enum
 typedef enum
 {
   GST_CAMERASRC_SCENE_MODE_AUTO = 0,
-  GST_CAMERASRC_SCENE_MODE_INDOOR = 1,
-  GST_CAMERASRC_SCENE_MODE_OUTOOR = 2,
-  GST_CAMERASRC_SCENE_MODE_DISABLED = 3,
+  GST_CAMERASRC_SCENE_MODE_HDR = 1,
+  GST_CAMERASRC_SCENE_MODE_ULL = 2,
+  GST_CAMERASRC_SCENE_MODE_NORMAL = 3,
+  GST_CAMERASRC_SCENE_MODE_INDOOR = 4,
+  GST_CAMERASRC_SCENE_MODE_OUTOOR = 5,
+  GST_CAMERASRC_SCENE_MODE_DISABLED = 6,
 } GstCamerasrcSceneMode;
 
 typedef enum
@@ -313,10 +317,17 @@ struct _Gstcamerasrc
   GstPad *srcpad, *sinkpad;
 
   GstBufferPool *pool;
+
   /* This is used for down stream plugin buffer pool, in
    * dma-import mode, icamerasrc will get the down stream
    * buffer pool to allocate buffers */
   GstBufferPool *downstream_pool;
+
+  /* Weave buffers are used only when deinterlace_method='sw_weave'
+    * top stores odd lines
+    * bottom stores even lines */
+  camera_buffer_t *top;
+  camera_buffer_t *bottom;
 
   /* Buffer configuration*/
   guint64 offset;
@@ -328,6 +339,7 @@ struct _Gstcamerasrc
   stream_config_t  stream_list;
   stream_t      streams[1]; //FIXME: Support only one stream now.
   camera_info_t cam_info;
+  gboolean first_frame;
 
   /*non-3A properties*/
   int device_id;
@@ -346,6 +358,9 @@ struct _Gstcamerasrc
   /* Calculate Gstbuffer timestamp*/
   uint64_t time_end;
   uint64_t time_start;
+
+  /*log print level*/
+  int debugLevel;
 };
 
 struct _GstcamerasrcClass

@@ -119,7 +119,7 @@ AS_IF([test "x${DEFAULT_CAMERA}" == x],
 # check for android stub linking
 AS_IF([test "x$with_androidstubs" == xyes],
   [
-    PKG_CHECK_MODULES([LIBANDROID_STUBS], [libandroid_stubs])
+    PKG_CHECK_MODULES([LIBUTILS], [libutils])
   ], [])
 
 # Checks for libraries - these paths don't work with bitbake, so can be disabled

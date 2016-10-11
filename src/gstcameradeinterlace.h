@@ -48,6 +48,10 @@
 #include <gst/base/gstpushsrc.h>
 #include "gstcamerasrc.h"
 
+bool gst_camerasrc_isPlanarFormat(int format);
+void gst_camerasrc_copy_field(Gstcamerasrc *camerasrc,
+        camera_buffer_t *src,
+        camera_buffer_t *dst);
 int gst_camerasrc_deinterlace_frame(Gstcamerasrc *camerasrc, camera_buffer_t *buffer);
 
 #endif /* __GST_CAMERASRC_DEINTERLACE_H__ */
