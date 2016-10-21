@@ -92,8 +92,10 @@ G_BEGIN_DECLS
 /* Default value of enum type property 'ae-converge-speed':normal */
 #define DEFAULT_PROP_CONVERGE_SPEED GST_CAMERASRC_CONVERGE_SPEED_NORMAL
 #define DEFAULT_PROP_CONVERGE_SPEED_MODE GST_CAMERASRC_CONVERGE_SPEED_MODE_AIQ
-/* Default value of enum type property 'antibanding':auto*/
+/* Default value of enum type property 'antibanding':auto */
 #define DEFAULT_PROP_ANTIBANDING_MODE GST_CAMERASRC_ANTIBANDING_MODE_AUTO
+/* Default value of enum type property 'exp-priority':auto */
+#define DEFAULT_PROP_EXPOSURE_PRIORITY GST_CAMERASRC_EXPOSURE_PRIORITY_AUTO
 
 /* Default value of string type properties */
 #define DEFAULT_PROP_WP NULL
@@ -232,6 +234,14 @@ typedef enum
   GST_CAMERASRC_ANTIBANDING_MODE_OFF = 3,
 } GstCamerasrcAntibandingMode;
 
+typedef enum
+{
+  GST_CAMERASRC_EXPOSURE_PRIORITY_AUTO = 0,
+  GST_CAMERASRC_EXPOSURE_PRIORITY_SHUTTER = 1,
+  GST_CAMERASRC_EXPOSURE_PRIORITY_ISO = 2,
+  GST_CAMERASRC_EXPOSURE_PRIORITY_APERTURE = 3,
+} GstCamerasrcExposurePriority;
+
 #define GST_TYPE_CAMERASRC \
   (gst_camerasrc_get_type())
 #define GST_CAMERASRC(obj) \
@@ -275,6 +285,7 @@ struct _Gst3AManualControl
   guint iris_level;
   guint exposure_time;
   guint exposure_ev;
+  int exposure_priority;
   guint gain;
   int ae_mode;
   char ae_region[128];

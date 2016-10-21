@@ -99,6 +99,7 @@ enum
   PROP_IRIS_LEVEL,
   PROP_EXPOSURE_TIME,
   PROP_EXPOSURE_EV,
+  PROP_EXPOSURE_PRIORITY,
   PROP_GAIN,
   PROP_AE_MODE,
   PROP_AE_REGION,
@@ -553,6 +554,30 @@ gst_camerasrc_antibanding_mode_get_type(void)
   return antibanding_mode_type;
 }
 
+static GType
+gst_camerasrc_exposure_priority_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType exp_priority_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_EXPOSURE_PRIORITY_AUTO,
+          "Auto", "auto"},
+    {GST_CAMERASRC_EXPOSURE_PRIORITY_SHUTTER,
+          "Shutter", "shutter"},
+    {GST_CAMERASRC_EXPOSURE_PRIORITY_ISO,
+          "ISO", "iso"},
+    {GST_CAMERASRC_EXPOSURE_PRIORITY_APERTURE,
+          "Aperture", "aperture"},
+    {0, NULL, NULL},
+   };
+
+  if (!exp_priority_type) {
+    exp_priority_type = g_enum_register_static ("GstCamerasrcExposurePriority", method_types);
+  }
+  return exp_priority_type;
+}
+
 static void
 gst_camerasrc_dispose(GObject *object)
 {
@@ -734,6 +759,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_int("ev","Exposure Ev","Exposure Ev",
           -4,4,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_EXPOSURE_PRIORITY,
+      g_param_spec_enum ("exp-priority", "Exposure Priority", "Exposure Priority",
+          gst_camerasrc_exposure_priority_get_type(), DEFAULT_PROP_EXPOSURE_PRIORITY, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property(gobject_class,PROP_CCT_RANGE,
       g_param_spec_string("cct-range","CCT range","CCT range(only valid for manual AWB mode)",
         DEFAULT_PROP_CCT_RANGE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -842,6 +871,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->man_ctl.ae_mode = DEFAULT_PROP_AE_MODE;
   camerasrc->man_ctl.wp = DEFAULT_PROP_WP;
   camerasrc->man_ctl.antibanding_mode = DEFAULT_PROP_ANTIBANDING_MODE;
+  camerasrc->man_ctl.exposure_priority = DEFAULT_PROP_EXPOSURE_PRIORITY;
 }
 
 /**
@@ -1021,29 +1051,6 @@ gst_camerasrc_check_device_match(int device_id, const char* device_name)
 }
 
 static int
-gst_camerasrc_get_device_id(const char* device_name)
-{
-  int count = get_number_of_cameras();
-  camera_info_t cam_info;
-  int ret = 0, dev_id = -1;
-
-  for (int i = 0; i < count; i++) {
-    ret = get_camera_info(i, cam_info);
-
-    if (ret < 0) {
-      g_print("failed to get device name.");
-      return -1;
-    }
-    if (strcmp(device_name, cam_info.name) == 0) {
-       dev_id = i;
-       break;
-    }
-  }
-
-  return dev_id;
-}
-
-static int
 gst_camerasrc_parse_framerate_value(int enum_value)
 {
   const int fps_arr[4] = {25, 30, 50, 60};
@@ -1175,8 +1182,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->param->setWdrMode((camera_wdr_mode_t)g_value_get_enum(value));
       src->man_ctl.wdr_mode = g_value_get_enum (value);
       /* W/A: When wdr-mode is on and specific camera is selected,
-       *      use scene mode to override wdr mode
-       *      meanwhile, switch to another camera ID and pass on to HAL
+       *      use scene mode to override wdr mode.
        */
       if (gst_camerasrc_check_device_match(src->device_id, "imx185")) {
           if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_AUTO)
@@ -1188,12 +1194,6 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
 
           src->param->setSceneMode((camera_scene_mode_t)enum_value);
           src->man_ctl.scene_mode = enum_value;
-
-          src->device_id = gst_camerasrc_get_device_id("imx185-hdr");
-          if (src->device_id < 0) {
-            GST_ERROR_OBJECT(src, "Couldn't find corresponding device!");
-            return;
-          }
       }
       break;
     case PROP_BLC_AREA_MODE:
@@ -1259,6 +1259,10 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_EXPOSURE_EV:
       src->param->setAeCompensation(g_value_get_int(value));
       src->man_ctl.exposure_ev = g_value_get_int (value);
+      break;
+    case PROP_EXPOSURE_PRIORITY:
+      src->param->setAeDistributionPriority((camera_ae_distribution_priority_t)g_value_get_enum(value));
+      src->man_ctl.exposure_priority = g_value_get_enum(value);
       break;
     case PROP_CCT_RANGE:
       g_free(src->man_ctl.cct_range);
@@ -1446,6 +1450,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_EXPOSURE_EV:
       g_value_set_int (value, src->man_ctl.exposure_ev);
+      break;
+    case PROP_EXPOSURE_PRIORITY:
+      g_value_set_int (value, src->man_ctl.exposure_priority);
       break;
     case PROP_CCT_RANGE:
       g_value_set_string (value, src->man_ctl.cct_range);
