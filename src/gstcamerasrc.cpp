@@ -130,6 +130,8 @@ enum
   PROP_SCENE_MODE,
   PROP_SENSOR_RESOLUTION,
   PROP_FPS,
+  /* Custom Aic Parameter*/
+  PROP_CUSTOM_AIC_PARAMETER,
 
   PROP_ANTIBANDING_MODE,
 };
@@ -193,9 +195,11 @@ gst_camerasrc_deinterlace_method_get_type(void)
     {GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB,
         "software bob", "sw_bob"},
     {GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB,
-        "hardware", "hw_bob"},
+        "hardware bob", "hw_bob"},
     {GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE,
-        "software weave", "sw_weave"},
+        "software weaving", "sw_weaving"},
+    {GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_WEAVE,
+         "hardware weaving", "hw_weaving"},
     {0, NULL, NULL},
   };
 
@@ -405,6 +409,8 @@ gst_camerasrc_scene_mode_get_type(void)
           "HDR", "hdr"},
     {GST_CAMERASRC_SCENE_MODE_ULL,
           "ULL", "ull"},
+    {GST_CAMERASRC_SCENE_MODE_HLC,
+          "HLC", "hlc"},
     {GST_CAMERASRC_SCENE_MODE_NORMAL,
           "NORMAL", "normal"},
     {GST_CAMERASRC_SCENE_MODE_INDOOR,
@@ -692,8 +698,8 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
         0,1000000,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property(gobject_class,PROP_GAIN,
-      g_param_spec_int("gain","Gain","Implement total gain or maximal gain(only valid in manual AE mode).Unit: db",
-        0,60,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+      g_param_spec_float("gain","Gain","Implement total gain or maximal gain(only valid in manual AE mode).Unit: db",
+        0.0,60.0,0.0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class, PROP_WDR_MODE,
       g_param_spec_enum ("wdr-mode", "WDR mode", "WDR mode",
@@ -790,6 +796,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
   g_object_class_install_property(gobject_class,PROP_AWB_REGION,
       g_param_spec_string("awb-region","AWB region","AWB region",
         DEFAULT_PROP_AWB_REGION, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_CUSTOM_AIC_PARAMETER,
+      g_param_spec_string("custom-aic-param","Custom Aic Parameter","Custom Aic Parameter",
+        DEFAULT_PROP_CUSTOM_AIC_PARAMETER, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class, PROP_ANTIBANDING_MODE,
       g_param_spec_enum ("antibanding-mode", "Antibanding Mode", "Antibanding Mode",
@@ -1073,6 +1083,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
   camera_color_transform_t transform;
   camera_range_t cct_range;
   camera_coordinate_t white_point;
+  unsigned int custom_aic_param_len = 0;
 
   memset(&img_enhancement, 0, sizeof(camera_image_enhancement_t));
   memset(&awb_gain, 0, sizeof(camera_awb_gains_t));
@@ -1109,6 +1120,21 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_DEINTERLACE_METHOD:
       manual_setting = false;
+      switch (g_value_get_enum(value)) {
+        case GST_CAMERASRC_DEINTERLACE_METHOD_NONE:
+        case GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB:
+        case GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB:
+        case GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE:
+          break;
+        case GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_WEAVE:
+          /* hardware weaving mode should be enabled thru
+          * camera_set_parameters() interface */
+          manual_setting = true;
+          src->param->setDeinterlaceMode((camera_deinterlace_mode_t)g_value_get_enum (value));
+          break;
+        default:
+          break;
+      }
       src->deinterlace_method = g_value_get_enum (value);
       break;
     case PROP_IO_MODE:
@@ -1175,8 +1201,8 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->man_ctl.exposure_time = g_value_get_int (value);
       break;
     case PROP_GAIN:
-      src->param->setSensitivityGain((float)g_value_get_int (value));
-      src->man_ctl.gain = g_value_get_int (value);
+      src->param->setSensitivityGain(g_value_get_float (value));
+      src->man_ctl.gain = g_value_get_float (value);
       break;
     case PROP_WDR_MODE:
       src->param->setWdrMode((camera_wdr_mode_t)g_value_get_enum(value));
@@ -1321,6 +1347,12 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
                  "%s", g_value_get_string(value));
       }
       break;
+    case PROP_CUSTOM_AIC_PARAMETER:
+      g_free(src->man_ctl.custom_aic_param);
+      src->man_ctl.custom_aic_param = g_strdup(g_value_get_string (value));
+      custom_aic_param_len = strlen(src->man_ctl.custom_aic_param) + 1;
+      src->param->setCustomAicParam(src->man_ctl.custom_aic_param, custom_aic_param_len);
+      break;
     case PROP_ANTIBANDING_MODE:
       src->param->setAntiBandingMode((camera_antibanding_mode_t)g_value_get_enum(value));
       src->man_ctl.antibanding_mode = g_value_get_enum (value);
@@ -1404,7 +1436,7 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       g_value_set_int (value, src->man_ctl.exposure_time);
       break;
     case PROP_GAIN:
-      g_value_set_int (value, src->man_ctl.gain);
+      g_value_set_float (value, src->man_ctl.gain);
       break;
     case PROP_WDR_MODE:
       g_value_set_enum (value, src->man_ctl.wdr_mode);
@@ -1452,7 +1484,7 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       g_value_set_int (value, src->man_ctl.exposure_ev);
       break;
     case PROP_EXPOSURE_PRIORITY:
-      g_value_set_int (value, src->man_ctl.exposure_priority);
+      g_value_set_enum (value, src->man_ctl.exposure_priority);
       break;
     case PROP_CCT_RANGE:
       g_value_set_string (value, src->man_ctl.cct_range);
@@ -1477,6 +1509,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_AWB_COLOR_TRANSFORM:
       g_value_set_string(value, src->man_ctl.color_transform);
+      break;
+    case PROP_CUSTOM_AIC_PARAMETER:
+      g_value_set_string(value, src->man_ctl.custom_aic_param);
       break;
     case PROP_ANTIBANDING_MODE:
       g_value_set_enum (value, src->man_ctl.antibanding_mode);
@@ -1660,6 +1695,9 @@ gst_camerasrc_get_configuration_mode(Gstcamerasrc* camerasrc, stream_config_t *s
         break;
       case GST_CAMERASRC_SCENE_MODE_ULL:
         stream_list->operation_mode = 0x8003;
+        break;
+      case GST_CAMERASRC_SCENE_MODE_HLC:
+        stream_list->operation_mode = 0x8004;
         break;
       case GST_CAMERASRC_SCENE_MODE_NORMAL:
         stream_list->operation_mode = 0;

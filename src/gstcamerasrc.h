@@ -103,6 +103,7 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_AWB_REGION NULL
 #define DEFAULT_PROP_CCT_RANGE NULL
 #define DEFAULT_PROP_COLOR_TRANSFORM NULL
+#define DEFAULT_PROP_CUSTOM_AIC_PARAMETER NULL
 
 // Macro for memcpy
 #define MEMCPY_S(dest, dmax, src, smax) \
@@ -121,6 +122,7 @@ typedef enum
   GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB = 1,
   GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB = 2,
   GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE = 3,
+  GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_WEAVE = 4,
 } GstCamerasrcDeinterlaceMethod;
 
 typedef enum
@@ -186,10 +188,11 @@ typedef enum
   GST_CAMERASRC_SCENE_MODE_AUTO = 0,
   GST_CAMERASRC_SCENE_MODE_HDR = 1,
   GST_CAMERASRC_SCENE_MODE_ULL = 2,
-  GST_CAMERASRC_SCENE_MODE_NORMAL = 3,
-  GST_CAMERASRC_SCENE_MODE_INDOOR = 4,
-  GST_CAMERASRC_SCENE_MODE_OUTOOR = 5,
-  GST_CAMERASRC_SCENE_MODE_DISABLED = 6,
+  GST_CAMERASRC_SCENE_MODE_HLC = 3,
+  GST_CAMERASRC_SCENE_MODE_NORMAL = 4,
+  GST_CAMERASRC_SCENE_MODE_INDOOR = 5,
+  GST_CAMERASRC_SCENE_MODE_OUTOOR = 6,
+  GST_CAMERASRC_SCENE_MODE_DISABLED = 7,
 } GstCamerasrcSceneMode;
 
 typedef enum
@@ -286,7 +289,7 @@ struct _Gst3AManualControl
   guint exposure_time;
   guint exposure_ev;
   int exposure_priority;
-  guint gain;
+  gfloat gain;
   int ae_mode;
   char ae_region[128];
   int converge_speed;
@@ -316,6 +319,8 @@ struct _Gst3AManualControl
   int scene_mode;
   int sensor_resolution;
   int fps;
+  /* Custom Aic Parameter */
+  gchar *custom_aic_param;
 
   int antibanding_mode;
 };

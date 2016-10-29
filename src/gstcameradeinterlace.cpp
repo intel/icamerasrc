@@ -186,6 +186,7 @@ int gst_camerasrc_deinterlace_frame(Gstcamerasrc *camerasrc, camera_buffer_t *bu
   switch (camerasrc->deinterlace_method) {
     case GST_CAMERASRC_DEINTERLACE_METHOD_NONE:
     case GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB:
+    case GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_WEAVE:
       break;
     case GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB:
       return gst_camerasrc_deinterlace_sw_bob(camerasrc, buffer);
