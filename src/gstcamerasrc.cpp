@@ -52,6 +52,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <vector>
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
 #include <gst/gst.h>
@@ -64,6 +65,7 @@
 #include "gstcameraformat.h"
 
 using namespace icamera;
+using std::vector;
 
 GST_DEBUG_CATEGORY (gst_camerasrc_debug);
 #define GST_CAT_DEFAULT gst_camerasrc_debug
@@ -711,7 +713,7 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
 
   g_object_class_install_property(gobject_class,PROP_WDR_LEVEL,
       g_param_spec_int("wdr-level","WDR level","WDR level",
-        0,15,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+        0,200,100,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class, PROP_AWB_MODE,
       g_param_spec_enum ("awb-mode", "AWB mode", "White balance mode",
@@ -855,6 +857,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   /* no need to add anything to init pad*/
   gst_base_src_set_format (GST_BASE_SRC (camerasrc), GST_FORMAT_TIME);
   gst_base_src_set_live (GST_BASE_SRC (camerasrc), TRUE);
+  camerasrc->number_of_cameras = get_number_of_cameras();
   camerasrc->stream_id = -1;
   camerasrc->number_of_buffers = DEFAULT_PROP_BUFFERCOUNT;
   camerasrc->capture_mode = DEFAULT_DEINTERLACE_METHOD;
@@ -1038,13 +1041,12 @@ gst_camerasrc_parse_white_point(Gstcamerasrc *src, gchar *wp_str, camera_coordin
 }
 
 static gboolean
-gst_camerasrc_check_device_match(int device_id, const char* device_name)
+gst_camerasrc_check_device_match(Gstcamerasrc *src, const char* device_name)
 {
-  int count = get_number_of_cameras();
   camera_info_t cam_info;
   int ret = 0;
 
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < src->number_of_cameras; i++) {
     ret = get_camera_info(i, cam_info);
 
     if (ret < 0) {
@@ -1052,7 +1054,7 @@ gst_camerasrc_check_device_match(int device_id, const char* device_name)
       return FALSE;
     }
     if (strcmp(device_name, cam_info.name) == 0 &&
-        device_id == i) {
+        src->device_id == i) {
       return TRUE;
     }
   }
@@ -1060,11 +1062,85 @@ gst_camerasrc_check_device_match(int device_id, const char* device_name)
   return FALSE;
 }
 
+
 static int
 gst_camerasrc_parse_framerate_value(int enum_value)
 {
   const int fps_arr[4] = {25, 30, 50, 60};
   return fps_arr[enum_value];
+}
+
+static int
+gst_camerasrc_check_exposuretime_range(Gstcamerasrc *src, GEnumValue *values, int exp)
+{
+  camera_info_t cam_info;
+  int ret = 0;
+
+  get_camera_info(src->device_id, cam_info);
+  vector<camera_ae_exposure_time_range_t> etRanges;
+  if (cam_info.capability->getSupportedAeExposureTimeRange(etRanges) == 0) {
+    for (auto & item : etRanges) {
+      if (src->man_ctl.scene_mode == values[item.scene_mode].value &&
+            (exp < item.exposure_time_min || exp > item.exposure_time_max)) {
+        g_print("Exposure time value: %d out of range!  Device name:%s  Scene mode:%s  Exposure time range[ %d - %d ]\n",
+                           exp, cam_info.name, values[item.scene_mode].value_nick,
+                           item.exposure_time_min, item.exposure_time_max);
+        ret = (exp < item.exposure_time_min) ? item.exposure_time_min : item.exposure_time_max;
+        g_print("Set exposure time to extreme value: %d\n", ret);
+        return ret;
+      }
+    }
+  }
+
+
+  return ret;
+}
+
+static float
+gst_camerasrc_check_aegain_range(Gstcamerasrc *src, GEnumValue *values, float gain)
+{
+  camera_info_t cam_info;
+  float ret = 0;
+
+  vector<camera_ae_gain_range_t> gainRange;
+  get_camera_info(src->device_id, cam_info);
+  if (cam_info.capability->getSupportedAeGainRange(gainRange) == 0) {
+    for (auto & item : gainRange) {
+      if (src->man_ctl.scene_mode == values[item.scene_mode].value &&
+            (gain < item.gain_min || gain > item.gain_max)) {
+        g_print("Gain value: %f out of range!  Device name:%s  Scene mode:%s  Gain range[ %f - %f ]\n",
+                           gain, cam_info.name, values[item.scene_mode].value_nick,
+                           item.gain_min, item.gain_max);
+        ret = (gain < item.gain_min) ? item.gain_min : item.gain_max;
+        g_print("Set gain to extreme value: %f\n", ret);
+        return ret;
+      }
+    }
+  }
+
+  return ret;
+}
+
+/* gst_camerasrc_check_supported_range() will check if values properties are within range
+   * If not, adjust its value to extreme of range and return it. Otherwise return 0 */
+template <typename T>
+T gst_camerasrc_check_supported_range(Gstcamerasrc *src, const char *s, T v)
+{
+  GObjectClass *oclass;
+  GParamSpec *spec;
+  GEnumValue *values;
+  T ret = 0;
+
+  oclass = G_OBJECT_GET_CLASS (src);
+  spec = g_object_class_find_property (oclass, "scene-mode");
+  values = G_ENUM_CLASS (g_type_class_ref(spec->value_type))->values;
+
+  if (strcmp(s, "exposure-time") == 0)
+    ret = gst_camerasrc_check_exposuretime_range(src, values, v);
+  else if (strcmp(s, "gain") == 0)
+    ret = gst_camerasrc_check_aegain_range(src, values, v);
+
+  return (ret == 0) ? v : ret;
 }
 
 static void
@@ -1119,18 +1195,18 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->interlace_field = g_value_get_enum (value);
       break;
     case PROP_DEINTERLACE_METHOD:
-      manual_setting = false;
+      manual_setting = true;
       switch (g_value_get_enum(value)) {
         case GST_CAMERASRC_DEINTERLACE_METHOD_NONE:
         case GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB:
         case GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB:
         case GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE:
+          src->param->setDeinterlaceMode(DEINTERLACE_OFF);
           break;
         case GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_WEAVE:
           /* hardware weaving mode should be enabled thru
           * camera_set_parameters() interface */
-          manual_setting = true;
-          src->param->setDeinterlaceMode((camera_deinterlace_mode_t)g_value_get_enum (value));
+          src->param->setDeinterlaceMode(DEINTERLACE_WEAVING);
           break;
         default:
           break;
@@ -1149,6 +1225,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
           GST_ERROR_OBJECT(src, "failed to get device name.");
           return;
       }
+
       break;
     case PROP_NUM_VC:
       manual_setting = false;
@@ -1197,20 +1274,19 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->man_ctl.iris_level = g_value_get_int (value);
       break;
     case PROP_EXPOSURE_TIME:
-      src->param->setExposureTime((int64_t)g_value_get_int (value));
-      src->man_ctl.exposure_time = g_value_get_int (value);
+      src->man_ctl.exposure_time = gst_camerasrc_check_supported_range(src,"exposure-time", g_value_get_int(value));
+      src->param->setExposureTime((int64_t)src->man_ctl.exposure_time);
       break;
     case PROP_GAIN:
-      src->param->setSensitivityGain(g_value_get_float (value));
-      src->man_ctl.gain = g_value_get_float (value);
+      src->man_ctl.gain = gst_camerasrc_check_supported_range(src,"gain", g_value_get_float (value));
+      src->param->setSensitivityGain(src->man_ctl.gain);
       break;
     case PROP_WDR_MODE:
       src->param->setWdrMode((camera_wdr_mode_t)g_value_get_enum(value));
       src->man_ctl.wdr_mode = g_value_get_enum (value);
       /* W/A: When wdr-mode is on and specific camera is selected,
-       *      use scene mode to override wdr mode.
-       */
-      if (gst_camerasrc_check_device_match(src->device_id, "imx185")) {
+       *   use scene mode to override wdr mode. */
+      if (gst_camerasrc_check_device_match(src, "imx185")) {
           if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_AUTO)
             enum_value = GST_CAMERASRC_SCENE_MODE_AUTO;
           else if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON)
@@ -1574,6 +1650,7 @@ gst_camerasrc_device_probe(Gstcamerasrc* camerasrc)
         camera_hal_deinit();
         return FALSE;
     }
+    camerasrc->cam_info_name = camerasrc->cam_info.name;
 
     return TRUE;
 }

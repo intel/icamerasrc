@@ -245,13 +245,22 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
   if (camerasrc->print_fps) {
      camerasrc->fps_debug.av_fps = (camerasrc->fps_debug.buf_count-FPS_BUF_COUNT_START)/(camerasrc->fps_debug.sum_time/1000000);
      if (camerasrc->fps_debug.buf_count <= FPS_BUF_COUNT_START) {
-        g_print("num-buffers value is too low, should be at least %d\n\n",FPS_BUF_COUNT_START);
+        g_print("\nCamera name:%s(Id:%d)\nnum-buffers value is too low, should be at least %d\n",
+                      camerasrc->cam_info_name,
+                      camerasrc->device_id,
+                      FPS_BUF_COUNT_START);
      } else if (camerasrc->fps_debug.max_fps == 0 || camerasrc->fps_debug.min_fps == 0) {
         // This means that pipeline runtime is less than 2 seconds,no update of max_fps and min_fps
-        g_print("Average fps is:%.4f\n\n",camerasrc->fps_debug.av_fps);
+        g_print("\nCamera name:%s(Id:%d)\nAverage fps is:%.4f\n",
+                      camerasrc->cam_info_name,
+                      camerasrc->device_id,
+                      camerasrc->fps_debug.av_fps);
      } else {
-        g_print("\nTotal frame is:%g\n",camerasrc->fps_debug.buf_count);
-        g_print("\nMax fps is:%.4f,Minimum fps is:%.4f,Average fps is:%.4f\n\n",
+        g_print("\nTotal frame is:%g  Camera name:%s(Id:%d)\n",
+                     camerasrc->fps_debug.buf_count,
+                     camerasrc->cam_info_name,
+                     camerasrc->device_id);
+        g_print("Max fps is:%.4f,Minimum fps is:%.4f,Average fps is:%.4f\n\n",
                      camerasrc->fps_debug.max_fps,
                      camerasrc->fps_debug.min_fps,
                      camerasrc->fps_debug.av_fps);
@@ -574,7 +583,7 @@ void gst_camerasrc_update_fps(Gstcamerasrc *camerasrc)
       if (camerasrc->fps_debug.tm_interval >= FPS_TIME_INTERVAL) {
           double interval_fps = (camerasrc->fps_debug.buf_count-camerasrc->fps_debug.last_buf_count)/ \
                                 (camerasrc->fps_debug.tm_interval/1000000);
-          g_print("fps:%.4f\n",interval_fps);
+          g_print("fps:%.4f   Camera name: %s\n",interval_fps, camerasrc->cam_info_name);
 
           if (camerasrc->fps_debug.init_max_min_fps) {
               camerasrc->fps_debug.max_fps = interval_fps;

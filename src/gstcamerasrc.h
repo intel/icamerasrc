@@ -355,9 +355,11 @@ struct _Gstcamerasrc
   stream_config_t  stream_list;
   stream_t      streams[1]; //FIXME: Support only one stream now.
   camera_info_t cam_info;
+  const char *cam_info_name;
   gboolean first_frame;
 
   /*non-3A properties*/
+  int number_of_cameras;
   int device_id;
   int deinterlace_method;
   int io_mode;
