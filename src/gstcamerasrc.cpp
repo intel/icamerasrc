@@ -104,6 +104,7 @@ enum
   PROP_EXPOSURE_PRIORITY,
   PROP_GAIN,
   PROP_AE_MODE,
+  PROP_WEIGHT_GRID_MODE,
   PROP_AE_REGION,
   PROP_CONVERGE_SPEED,
   PROP_CONVERGE_SPEED_MODE,
@@ -497,6 +498,44 @@ gst_camerasrc_ae_mode_get_type(void)
 }
 
 static GType
+gst_camerasrc_weight_grid_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType weight_grid_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_WEIGHT_GRID_MODE_AUTO,
+          "Auto", "auto"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_1,
+          "Custom Weight Grid 1", "wg1"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_2,
+          "Custom Weight Grid 2", "wg2"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_3,
+          "Custom Weight Grid 3", "wg3"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_4,
+          "Custom Weight Grid 4", "wg4"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_5,
+          "Custom Weight Grid 5", "wg5"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_6,
+          "Custom Weight Grid 6", "wg6"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_7,
+          "Custom Weight Grid 7", "wg7"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_8,
+          "Custom Weight Grid 8", "wg8"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_9,
+          "Custom Weight Grid 9", "wg9"},
+    {GST_CAMERASRC_CUSTOM_WEIGHT_GRID_10,
+          "Custom Weight Grid 10", "wg10"},
+     {0, NULL, NULL},
+   };
+
+  if (!weight_grid_mode_type) {
+    weight_grid_mode_type = g_enum_register_static ("GstCamerasrcWeightGridMode", method_types);
+  }
+  return weight_grid_mode_type;
+}
+
+static GType
 gst_camerasrc_converge_speed_get_type(void)
 {
   PERF_CAMERA_ATRACE();
@@ -755,6 +794,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum ("ae-mode", "AE mode", "AE mode",
           gst_camerasrc_ae_mode_get_type(), DEFAULT_PROP_AE_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_WEIGHT_GRID_MODE,
+      g_param_spec_enum ("weight-grid-mode", "Weight Grid Mode", "Weight Grid Mode",
+          gst_camerasrc_weight_grid_mode_get_type(), DEFAULT_PROP_WEIGHT_GRID_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_CONVERGE_SPEED,
       g_param_spec_enum ("converge-speed", "Converge Speed", "Converge Speed",
           gst_camerasrc_converge_speed_get_type(), DEFAULT_PROP_CONVERGE_SPEED, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -875,6 +918,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   memset(camerasrc->man_ctl.color_transform, 0, sizeof(camerasrc->man_ctl.color_transform));
   camerasrc->man_ctl.iris_mode = DEFAULT_PROP_IRIS_MODE;
   camerasrc->man_ctl.wdr_mode = DEFAULT_PROP_WDR_MODE;
+  camerasrc->man_ctl.wdr_level = DEFAULT_PROP_WDR_LEVEL;
   camerasrc->man_ctl.blc_area_mode = DEFAULT_PROP_BLC_AREA_MODE;
   camerasrc->man_ctl.awb_mode = DEFAULT_PROP_AWB_MODE;
   camerasrc->man_ctl.nr_mode = DEFAULT_PROP_NR_MODE;
@@ -882,6 +926,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->man_ctl.sensor_resolution = DEFAULT_PROP_SENSOR_RESOLUTION;
   camerasrc->man_ctl.fps = DEFAULT_PROP_FPS;
   camerasrc->man_ctl.ae_mode = DEFAULT_PROP_AE_MODE;
+  camerasrc->man_ctl.weight_grid_mode = DEFAULT_PROP_WEIGHT_GRID_MODE;
   camerasrc->man_ctl.wp = DEFAULT_PROP_WP;
   camerasrc->man_ctl.antibanding_mode = DEFAULT_PROP_ANTIBANDING_MODE;
   camerasrc->man_ctl.exposure_priority = DEFAULT_PROP_EXPOSURE_PRIORITY;
@@ -1348,6 +1393,10 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->param->setAeMode((camera_ae_mode_t)g_value_get_enum(value));
       src->man_ctl.ae_mode = g_value_get_enum(value);
       break;
+    case PROP_WEIGHT_GRID_MODE:
+      src->param->setWeightGridMode((camera_weight_grid_mode_t)g_value_get_enum(value));
+      src->man_ctl.weight_grid_mode = g_value_get_enum(value);
+      break;
     case PROP_CONVERGE_SPEED:
       src->param->setAeConvergeSpeed((camera_converge_speed_t)g_value_get_enum(value));
       src->param->setAwbConvergeSpeed((camera_converge_speed_t)g_value_get_enum(value));
@@ -1549,6 +1598,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_AE_MODE:
       g_value_set_enum (value, src->man_ctl.ae_mode);
+      break;
+    case PROP_WEIGHT_GRID_MODE:
+      g_value_set_enum (value, src->man_ctl.weight_grid_mode);
       break;
     case PROP_CONVERGE_SPEED:
       g_value_set_enum (value, src->man_ctl.converge_speed);

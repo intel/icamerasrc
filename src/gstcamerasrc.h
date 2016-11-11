@@ -63,6 +63,7 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_BUFFERCOUNT 6
 #define MAX_PROP_BUFFERCOUNT 10
 #define MIN_PROP_BUFFERCOUNT 2
+#define DEFAULT_PROP_WDR_LEVEL 100
 #define DEFAULT_PROP_PRINT_FPS false
 
 /* Default value of enum type property 'io-mode':userptr */
@@ -89,6 +90,8 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_FPS GST_CAMERASRC_FPS_30
 /* Default value of enum type property 'ae-mode':auto */
 #define DEFAULT_PROP_AE_MODE GST_CAMERASRC_AE_MODE_AUTO
+/* Default value of enum type property 'weight-grid-mode':auto */
+#define DEFAULT_PROP_WEIGHT_GRID_MODE GST_CAMERASRC_WEIGHT_GRID_MODE_AUTO
 /* Default value of enum type property 'ae-converge-speed':normal */
 #define DEFAULT_PROP_CONVERGE_SPEED GST_CAMERASRC_CONVERGE_SPEED_NORMAL
 #define DEFAULT_PROP_CONVERGE_SPEED_MODE GST_CAMERASRC_CONVERGE_SPEED_MODE_AIQ
@@ -218,6 +221,21 @@ typedef enum
 
 typedef enum
 {
+  GST_CAMERASRC_WEIGHT_GRID_MODE_AUTO = 0,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_1 = 1,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_2 = 2,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_3 = 3,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_4 = 4,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_5 = 5,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_6 = 6,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_7 = 7,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_8 = 8,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_9 = 9,
+  GST_CAMERASRC_CUSTOM_WEIGHT_GRID_10 = 10,
+} GstCamerasrcWeightGridMode;
+
+typedef enum
+{
   GST_CAMERASRC_CONVERGE_SPEED_NORMAL = 0,
   GST_CAMERASRC_CONVERGE_SPEED_MID = 1,
   GST_CAMERASRC_CONVERGE_SPEED_LOW = 2,
@@ -291,6 +309,7 @@ struct _Gst3AManualControl
   int exposure_priority;
   gfloat gain;
   int ae_mode;
+  int weight_grid_mode;
   char ae_region[128];
   int converge_speed;
   int converge_speed_mode;
