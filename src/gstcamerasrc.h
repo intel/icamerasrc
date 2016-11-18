@@ -66,6 +66,8 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_WDR_LEVEL 100
 #define DEFAULT_PROP_PRINT_FPS false
 
+/* Default value of enum type property 'capture-mode': preview */
+#define DEFAULT_PROP_CAPTURE_MODE GST_CAMERASRC_CAPTURE_MODE_PREVIEW
 /* Default value of enum type property 'io-mode':userptr */
 #define DEFAULT_PROP_IO_MODE GST_CAMERASRC_IO_MODE_USERPTR
 /* Default value of enum type property 'interlace-mode':any */
@@ -112,12 +114,12 @@ G_BEGIN_DECLS
 #define MEMCPY_S(dest, dmax, src, smax) \
   memcpy((dest), (src), std::min((size_t)(dmax), (size_t)(smax)))
 
-enum
+typedef enum
 {
-    CAMERASRC_CAPTURE_MODE_STILL = 0,
-    CAMERASRC_CAPTURE_MODE_VIDEO = 1,
-    CAMERASRC_CAPTURE_MODE_PREVIEW = 2,
-};
+  GST_CAMERASRC_CAPTURE_MODE_PREVIEW = 0,
+  GST_CAMERASRC_CAPTURE_MODE_VIDEO = 1,
+  GST_CAMERASRC_CAPTURE_MODE_STILL = 2,
+}GstCamerasrcCaptureMode;
 
 typedef enum
 {
@@ -382,7 +384,7 @@ struct _Gstcamerasrc
   int device_id;
   int deinterlace_method;
   int io_mode;
-  guint capture_mode;
+  int capture_mode;
   guint print_fps;
   GstFpsDebug fps_debug;
   guint num_vc;

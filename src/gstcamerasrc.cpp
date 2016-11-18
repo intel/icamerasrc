@@ -166,6 +166,29 @@ static GstFlowReturn gst_camerasrc_chain (GstPad * pad, GstObject * parent, GstB
 #endif
 
 static GType
+gst_camerasrc_capture_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType capture_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_CAPTURE_MODE_PREVIEW,
+        "Preview mode", "prev"},
+    {GST_CAMERASRC_CAPTURE_MODE_VIDEO,
+        "Video mode", "vid"},
+    {GST_CAMERASRC_CAPTURE_MODE_STILL,
+        "Still Capture mode", "still"},
+    {0, NULL, NULL},
+  };
+
+  if (!capture_mode_type) {
+    capture_mode_type =
+        g_enum_register_static ("GstCamerasrcCaptureMode", method_types);
+  }
+  return capture_mode_type;
+}
+
+static GType
 gst_camerasrc_interlace_field_get_type(void)
 {
   PERF_CAMERA_ATRACE();
@@ -669,8 +692,8 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
   gstelement_class->change_state = gst_camerasrc_change_state;
 
   g_object_class_install_property(gobject_class,PROP_CAPTURE_MODE,
-      g_param_spec_int("capture-mode","capture mode","In which mode will implement preview/video/still",
-        0,G_MAXINT,CAMERASRC_CAPTURE_MODE_PREVIEW,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+      g_param_spec_enum("capture-mode","capture mode","In which mode will implement preview/video/still",
+        gst_camerasrc_capture_mode_get_type(), DEFAULT_PROP_CAPTURE_MODE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property(gobject_class,PROP_BUFFERCOUNT,
       g_param_spec_int("buffer-count","buffer count","The number of buffer to allocate when do the streaming",
@@ -1119,7 +1142,7 @@ static int
 gst_camerasrc_check_exposuretime_range(Gstcamerasrc *src, GEnumValue *values, int exp)
 {
   camera_info_t cam_info;
-  int ret = 0;
+  int ret = exp;
 
   get_camera_info(src->device_id, cam_info);
   vector<camera_ae_exposure_time_range_t> etRanges;
@@ -1127,9 +1150,6 @@ gst_camerasrc_check_exposuretime_range(Gstcamerasrc *src, GEnumValue *values, in
     for (auto & item : etRanges) {
       if (src->man_ctl.scene_mode == values[item.scene_mode].value &&
             (exp < item.exposure_time_min || exp > item.exposure_time_max)) {
-        g_print("Exposure time value: %d out of range!  Device name:%s  Scene mode:%s  Exposure time range[ %d - %d ]\n",
-                           exp, cam_info.name, values[item.scene_mode].value_nick,
-                           item.exposure_time_min, item.exposure_time_max);
         ret = (exp < item.exposure_time_min) ? item.exposure_time_min : item.exposure_time_max;
         g_print("Set exposure time to extreme value: %d\n", ret);
         return ret;
@@ -1145,7 +1165,7 @@ static float
 gst_camerasrc_check_aegain_range(Gstcamerasrc *src, GEnumValue *values, float gain)
 {
   camera_info_t cam_info;
-  float ret = 0;
+  float ret = gain;
 
   vector<camera_ae_gain_range_t> gainRange;
   get_camera_info(src->device_id, cam_info);
@@ -1153,9 +1173,6 @@ gst_camerasrc_check_aegain_range(Gstcamerasrc *src, GEnumValue *values, float ga
     for (auto & item : gainRange) {
       if (src->man_ctl.scene_mode == values[item.scene_mode].value &&
             (gain < item.gain_min || gain > item.gain_max)) {
-        g_print("Gain value: %f out of range!  Device name:%s  Scene mode:%s  Gain range[ %f - %f ]\n",
-                           gain, cam_info.name, values[item.scene_mode].value_nick,
-                           item.gain_min, item.gain_max);
         ret = (gain < item.gain_min) ? item.gain_min : item.gain_max;
         g_print("Set gain to extreme value: %f\n", ret);
         return ret;
@@ -1166,26 +1183,28 @@ gst_camerasrc_check_aegain_range(Gstcamerasrc *src, GEnumValue *values, float ga
   return ret;
 }
 
-/* gst_camerasrc_check_supported_range() will check if values properties are within range
-   * If not, adjust its value to extreme of range and return it. Otherwise return 0 */
-template <typename T>
-T gst_camerasrc_check_supported_range(Gstcamerasrc *src, const char *s, T v)
+/* This function will check if exposure-time and gain properties are within range
+   * according to current scene-mode. If not, adjust its value to extreme of range
+   * and call interfaces to set scene-mode, exposure-time, gain together. */
+static void
+gst_camerasrc_config_scene_mode_params(Gstcamerasrc *src)
 {
   GObjectClass *oclass;
   GParamSpec *spec;
   GEnumValue *values;
-  T ret = 0;
 
   oclass = G_OBJECT_GET_CLASS (src);
   spec = g_object_class_find_property (oclass, "scene-mode");
   values = G_ENUM_CLASS (g_type_class_ref(spec->value_type))->values;
 
-  if (strcmp(s, "exposure-time") == 0)
-    ret = gst_camerasrc_check_exposuretime_range(src, values, v);
-  else if (strcmp(s, "gain") == 0)
-    ret = gst_camerasrc_check_aegain_range(src, values, v);
+  /* Check if exposure time and gain values are out of range */
+  int adjusted_exp = gst_camerasrc_check_exposuretime_range(src, values, src->man_ctl.exposure_time);
+  gfloat adjusted_gain = gst_camerasrc_check_aegain_range(src, values, src->man_ctl.gain);
 
-  return (ret == 0) ? v : ret;
+  /* Call interfaces together */
+  src->param->setSceneMode((camera_scene_mode_t)src->man_ctl.scene_mode);
+  src->param->setExposureTime((int64_t)adjusted_exp);
+  src->param->setSensitivityGain(adjusted_gain);
 }
 
 static void
@@ -1196,8 +1215,8 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
   Gstcamerasrc *src = GST_CAMERASRC (object);
   int ret = 0;
   int enum_value = -1;
-
   gboolean manual_setting = true;
+
   camera_awb_gains_t awb_gain;
   camera_image_enhancement_t img_enhancement;
   camera_window_list_t region;
@@ -1212,20 +1231,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_CAPTURE_MODE:
       manual_setting = false;
-      switch (g_value_get_int (value)) {
-        case 0:
-          src->capture_mode = CAMERASRC_CAPTURE_MODE_STILL;
-          break;
-        case 1:
-          src->capture_mode = CAMERASRC_CAPTURE_MODE_VIDEO;
-          break;
-        case 2:
-          src->capture_mode = CAMERASRC_CAPTURE_MODE_PREVIEW;
-          break;
-        default:
-          g_print ("Invalid capure mode");
-          break;
-      }
+      src->capture_mode = g_value_get_enum (value);
       break;
     case PROP_BUFFERCOUNT:
       manual_setting = false;
@@ -1319,12 +1325,12 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->man_ctl.iris_level = g_value_get_int (value);
       break;
     case PROP_EXPOSURE_TIME:
-      src->man_ctl.exposure_time = gst_camerasrc_check_supported_range(src,"exposure-time", g_value_get_int(value));
-      src->param->setExposureTime((int64_t)src->man_ctl.exposure_time);
+      src->man_ctl.exposure_time = g_value_get_int(value);
+      gst_camerasrc_config_scene_mode_params(src);
       break;
     case PROP_GAIN:
-      src->man_ctl.gain = gst_camerasrc_check_supported_range(src,"gain", g_value_get_float (value));
-      src->param->setSensitivityGain(src->man_ctl.gain);
+      src->man_ctl.gain = g_value_get_float (value);
+      gst_camerasrc_config_scene_mode_params(src);
       break;
     case PROP_WDR_MODE:
       src->param->setWdrMode((camera_wdr_mode_t)g_value_get_enum(value));
@@ -1378,8 +1384,8 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->man_ctl.nr_mode = g_value_get_enum (value);
       break;
     case PROP_SCENE_MODE:
-      src->param->setSceneMode((camera_scene_mode_t)g_value_get_enum(value));
       src->man_ctl.scene_mode = g_value_get_enum (value);
+      gst_camerasrc_config_scene_mode_params(src);
       break;
     case PROP_SENSOR_RESOLUTION:
       //implement this in the future.
@@ -1510,7 +1516,7 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_CAPTURE_MODE:
-      g_value_set_int (value, src->capture_mode);
+      g_value_set_enum (value, src->capture_mode);
       break;
     case PROP_BUFFERCOUNT:
       g_value_set_int (value, src->number_of_buffers);
