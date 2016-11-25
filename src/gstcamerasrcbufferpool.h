@@ -52,8 +52,9 @@ typedef struct _GstCamerasrcBufferPool GstCamerasrcBufferPool;//in use of qbuf&d
 typedef struct _GstCamerasrcBufferPoolClass GstCamerasrcBufferPoolClass;//in use of _class_init
 typedef struct _GstCamerasrcMeta GstCamerasrcMeta;
 
-GST_DEBUG_CATEGORY_EXTERN(camerasrcbuffer_debug);
 G_BEGIN_DECLS
+GST_DEBUG_CATEGORY_EXTERN(gst_camerasrc_debug);
+#define GST_CAT_DEFAULT gst_camerasrc_debug
 
 #define GST_TYPE_CAMERASRC_BUFFER_POOL      (gst_camerasrc_buffer_pool_get_type())
 #define GST_IS_CAMERASRC_BUFFER_POOL(obj)   (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_CAMERASRC_BUFFER_POOL))
@@ -101,4 +102,3 @@ GstBufferPool *gst_camerasrc_buffer_pool_new(Gstcamerasrc *src, GstCaps *caps);
 
 G_END_DECLS
 #endif
-

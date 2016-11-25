@@ -63,9 +63,6 @@
 using namespace icamera;
 using std::vector;
 
-GST_DEBUG_CATEGORY_EXTERN(gst_camerasrc_debug);
-#define GST_CAT_DEFAULT gst_camerasrc_debug
-
 /**
   * Used to save the max/min width and height of corresponding format when parsing camera info
   */
@@ -286,23 +283,20 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
 {
   PERF_CAMERA_ATRACE();
 
-  static GstCaps *caps = NULL;
   vector <camera_resolution_t> fmt_res;
   vector <cameraSrc_Main_Res_Range> main_res_range;
-  int ret = 0;
-  int count;
 
-  caps = gst_caps_new_empty ();
-  count = get_number_of_cameras();
+  static GstCaps *caps = gst_caps_new_empty ();
+  int count = get_number_of_cameras();
 
   for(int i = 0; i < count; i++) {
     stream_array_t configs;
     camera_info_t info;
 
     //get configuration of camera
-    ret = get_camera_info(i, info);
+    int ret = get_camera_info(i, info);
     if (ret != 0) {
-      GST_ERROR_OBJECT(camerasrc_class, "failed to get_camera_info from libcamhal %d\n", ret);
+      GST_ERROR("failed to get camera info from libcamhal");
       gst_caps_unref(caps);
       return NULL;
     }
@@ -310,7 +304,7 @@ GstCaps *gst_camerasrc_get_all_caps (GstcamerasrcClass *camerasrc_class)
 
     ret = register_format_and_resolution(configs, fmt_res, main_res_range);
     if (ret != 0) {
-        GST_ERROR_OBJECT(camerasrc_class, "failed to get format info from libcamhal %d\n", ret);
+        GST_ERROR("failed to get format info from libcamhal");
         gst_caps_unref(caps);
         return NULL;
     }

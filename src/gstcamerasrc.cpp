@@ -132,7 +132,6 @@ enum
   /* Video Adjustment*/
   PROP_SCENE_MODE,
   PROP_SENSOR_RESOLUTION,
-  PROP_FPS,
   /* Custom Aic Parameter*/
   PROP_CUSTOM_AIC_PARAMETER,
 
@@ -443,9 +442,13 @@ gst_camerasrc_scene_mode_get_type(void)
           "Indoor", "indoor"},
     {GST_CAMERASRC_SCENE_MODE_OUTOOR,
           "Outdoor", "outdoor"},
+    {GST_CAMERASRC_SCENE_MODE_VIDEO_LL,
+          "VIDEO_LL", "video-ll"},
     {GST_CAMERASRC_SCENE_MODE_DISABLED,
           "Disabled", "disabled"},
-     {0, NULL, NULL},
+    {GST_CAMERASRC_SCENE_MODE_CUSTOM_AIC,
+          "CUSTOM_AIC", "custom_aic"},
+    {0, NULL, NULL},
    };
 
   if (!scene_mode_type) {
@@ -474,30 +477,6 @@ gst_camerasrc_sensor_resolution_get_type(void)
     sensor_resolution_type = g_enum_register_static ("GstCamerasrcSensorResolution", method_types);
   }
   return sensor_resolution_type;
-}
-
-static GType
-gst_camerasrc_fps_get_type(void)
-{
-  PERF_CAMERA_ATRACE();
-  static GType fps_type = 0;
-
-  static const GEnumValue method_types[] = {
-    {GST_CAMERASRC_FPS_25,
-          "25fps", "25"},
-    {GST_CAMERASRC_FPS_30,
-          "30fps", "30"},
-    {GST_CAMERASRC_FPS_50,
-          "50fps", "50"},
-    {GST_CAMERASRC_FPS_60,
-          "60fps", "60"},
-    {0, NULL, NULL},
-   };
-
-  if (!fps_type) {
-    fps_type = g_enum_register_static ("GstCamerasrcFps", method_types);
-  }
-  return fps_type;
 }
 
 static GType
@@ -651,7 +630,8 @@ gst_camerasrc_exposure_priority_get_type(void)
 static void
 gst_camerasrc_dispose(GObject *object)
 {
-  GST_INFO("@%s\n",__func__);
+  Gstcamerasrc *camerasrc = GST_CAMERASRC (object);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
@@ -659,7 +639,7 @@ static void
 gst_camerasrc_finalize (Gstcamerasrc *camerasrc)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
 
   camera_hal_deinit();
   delete camerasrc->param;
@@ -672,7 +652,6 @@ static void
 gst_camerasrc_class_init (GstcamerasrcClass * klass)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseSrcClass *basesrc_class;
@@ -809,10 +788,6 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum ("sensor-resolution", "Sensor resolution", "Sensor resolution",
           gst_camerasrc_sensor_resolution_get_type(), DEFAULT_PROP_SENSOR_RESOLUTION, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
-  g_object_class_install_property (gobject_class, PROP_FPS,
-      g_param_spec_enum ("fps", "Framerate", "Framerate",
-          gst_camerasrc_fps_get_type(), DEFAULT_PROP_FPS, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
   g_object_class_install_property (gobject_class, PROP_AE_MODE,
       g_param_spec_enum ("ae-mode", "AE mode", "AE mode",
           gst_camerasrc_ae_mode_get_type(), DEFAULT_PROP_AE_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -915,7 +890,6 @@ static void
 gst_camerasrc_init (Gstcamerasrc * camerasrc)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
 
   camerasrc->pool = NULL;
   camerasrc->downstream_pool = NULL;
@@ -926,8 +900,9 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->number_of_cameras = get_number_of_cameras();
   camerasrc->stream_id = -1;
   camerasrc->number_of_buffers = DEFAULT_PROP_BUFFERCOUNT;
-  camerasrc->capture_mode = DEFAULT_DEINTERLACE_METHOD;
+  camerasrc->capture_mode = DEFAULT_PROP_CAPTURE_MODE;
   camerasrc->interlace_field = DEFAULT_PROP_INTERLACE_MODE;
+  camerasrc->deinterlace_method = DEFAULT_DEINTERLACE_METHOD;
   camerasrc->device_id = DEFAULT_PROP_DEVICE_ID;
   camerasrc->camera_open = false;
   camerasrc->num_vc = 0;
@@ -947,7 +922,6 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->man_ctl.nr_mode = DEFAULT_PROP_NR_MODE;
   camerasrc->man_ctl.scene_mode = DEFAULT_PROP_SCENE_MODE;
   camerasrc->man_ctl.sensor_resolution = DEFAULT_PROP_SENSOR_RESOLUTION;
-  camerasrc->man_ctl.fps = DEFAULT_PROP_FPS;
   camerasrc->man_ctl.ae_mode = DEFAULT_PROP_AE_MODE;
   camerasrc->man_ctl.weight_grid_mode = DEFAULT_PROP_WEIGHT_GRID_MODE;
   camerasrc->man_ctl.wp = DEFAULT_PROP_WP;
@@ -1073,7 +1047,7 @@ gst_camerasrc_parse_cct_range(Gstcamerasrc *src, gchar *cct_range_str, camera_ra
   snprintf(cct_range_array, sizeof(cct_range_array), "%s", cct_range_str);
   token = strtok(cct_range_array,"~");
   if (token == NULL) {
-      GST_ERROR_OBJECT(src, "failed to acquire cct range.");
+      g_print("failed to acquire cct range.");
       return -1;
   }
   cct_range.min = atoi(token);
@@ -1099,7 +1073,7 @@ gst_camerasrc_parse_white_point(Gstcamerasrc *src, gchar *wp_str, camera_coordin
   snprintf(white_point_array, sizeof(white_point_array), "%s", wp_str);
   token = strtok(white_point_array,",");
   if (token == NULL) {
-      GST_ERROR_OBJECT(src, "failed to acquire white point.");
+      g_print("failed to acquire white point.");
       return -1;
   }
   white_point.x = atoi(token);
@@ -1116,7 +1090,6 @@ gst_camerasrc_check_device_match(Gstcamerasrc *src, const char* device_name)
 
   for (int i = 0; i < src->number_of_cameras; i++) {
     ret = get_camera_info(i, cam_info);
-
     if (ret < 0) {
       g_print("failed to get device name.");
       return FALSE;
@@ -1128,14 +1101,6 @@ gst_camerasrc_check_device_match(Gstcamerasrc *src, const char* device_name)
   }
 
   return FALSE;
-}
-
-
-static int
-gst_camerasrc_parse_framerate_value(int enum_value)
-{
-  const int fps_arr[4] = {25, 30, 50, 60};
-  return fps_arr[enum_value];
 }
 
 static int
@@ -1156,7 +1121,6 @@ gst_camerasrc_check_exposuretime_range(Gstcamerasrc *src, GEnumValue *values, in
       }
     }
   }
-
 
   return ret;
 }
@@ -1189,13 +1153,9 @@ gst_camerasrc_check_aegain_range(Gstcamerasrc *src, GEnumValue *values, float ga
 static void
 gst_camerasrc_config_scene_mode_params(Gstcamerasrc *src)
 {
-  GObjectClass *oclass;
-  GParamSpec *spec;
-  GEnumValue *values;
-
-  oclass = G_OBJECT_GET_CLASS (src);
-  spec = g_object_class_find_property (oclass, "scene-mode");
-  values = G_ENUM_CLASS (g_type_class_ref(spec->value_type))->values;
+  GObjectClass *oclass = G_OBJECT_GET_CLASS (src);
+  GParamSpec *spec = g_object_class_find_property (oclass, "scene-mode");
+  GEnumValue *values = G_ENUM_CLASS (g_type_class_ref(spec->value_type))->values;
 
   /* Check if exposure time and gain values are out of range */
   int adjusted_exp = gst_camerasrc_check_exposuretime_range(src, values, src->man_ctl.exposure_time);
@@ -1273,7 +1233,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->device_id = g_value_get_enum (value);
       ret   = get_camera_info(src->device_id, src->cam_info);
       if (ret < 0) {
-          GST_ERROR_OBJECT(src, "failed to get device name.");
+          GST_ERROR("failed to get device name when setting device-name.");
           return;
       }
 
@@ -1390,10 +1350,6 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_SENSOR_RESOLUTION:
       //implement this in the future.
       src->man_ctl.sensor_resolution = g_value_get_enum (value);
-      break;
-    case PROP_FPS:
-      src->man_ctl.fps = g_value_get_enum (value);
-      src->param->setFrameRate(gst_camerasrc_parse_framerate_value(src->man_ctl.fps));
       break;
     case PROP_AE_MODE:
       src->param->setAeMode((camera_ae_mode_t)g_value_get_enum(value));
@@ -1599,9 +1555,6 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
    case PROP_SENSOR_RESOLUTION:
       g_value_set_enum (value, src->man_ctl.sensor_resolution);
       break;
-    case PROP_FPS:
-      g_value_set_enum (value, src->man_ctl.fps);
-      break;
     case PROP_AE_MODE:
       g_value_set_enum (value, src->man_ctl.ae_mode);
       break;
@@ -1681,60 +1634,33 @@ gst_camerasrc_find_match_stream(Gstcamerasrc* camerasrc,
         if (width == configs[i].width && height == configs[i].height &&
             format == configs[i].format && field == configs[i].field) {
             camerasrc->streams[0] = configs[i];
+            camerasrc->bpl = configs[i].stride;
             return TRUE;
         }
     }
 
-    //return the first one as default
-    GST_ERROR_OBJECT(camerasrc, "failed to find a match resolutions from HAL.");
     return ret;
-}
-
-/**
-  * Init the HAL and return the camera information in the cam_info for the match device
-  */
-static gboolean
-gst_camerasrc_device_probe(Gstcamerasrc* camerasrc)
-{
-    int ret = camera_hal_init();
-    if (ret < 0) {
-        GST_ERROR_OBJECT(camerasrc, "failed to init libcamhal device.");
-        return FALSE;
-    }
-
-    ret = get_camera_info(camerasrc->device_id, camerasrc->cam_info);
-    if (ret < 0) {
-        GST_ERROR_OBJECT(camerasrc, "failed to get device name.");
-        camera_hal_deinit();
-        return FALSE;
-    }
-    camerasrc->cam_info_name = camerasrc->cam_info.name;
-
-    return TRUE;
 }
 
 static gboolean
 gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_config_t *stream_list)
 {
   PERF_CAMERA_ATRACE();
-  GstStructure *structure;
-  guint32 fourcc;
-  const gchar *mimetype;
   GstVideoInfo info;
+  guint32 fourcc = 0;
+  GstStructure *structure = gst_caps_get_structure (caps, 0);
+  const gchar *mimetype = gst_structure_get_name (structure);
 
-  fourcc = 0;
-  structure = gst_caps_get_structure (caps, 0);
-  mimetype = gst_structure_get_name (structure);
+  /* raw caps, parse into video info */
+  if (!gst_video_info_from_caps (&info, caps)) {
+    GST_ERROR("CameraId=%d Caps can't be parsed", camerasrc->device_id);
+    return FALSE;
+  }
+  GstVideoFormat gst_fmt = GST_VIDEO_INFO_FORMAT (&info);
 
-  /* parse format,width,height from caps */
+  /* parse format from caps */
   if (g_str_equal (mimetype, "video/x-raw")) {
-    /* raw caps, parse into video info */
-    if (!gst_video_info_from_caps (&info, caps)) {
-      GST_ERROR_OBJECT (camerasrc, "invalid format");
-      return FALSE;
-    }
-
-    switch (GST_VIDEO_INFO_FORMAT (&info)) {
+    switch (gst_fmt) {
       case GST_VIDEO_FORMAT_NV12:
         fourcc = V4L2_PIX_FMT_NV12;
         break;
@@ -1765,51 +1691,67 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
   } else if (g_str_equal (mimetype, "video/x-bayer")) {
     fourcc = V4L2_PIX_FMT_SGRBG8;
   } else {
-    GST_ERROR_OBJECT(camerasrc, "unsupported type %s", mimetype);
+    GST_ERROR("CameraId=%d unsupported type %s", camerasrc->device_id, mimetype);
     return FALSE;
   }
 
+  /* parse width from caps */
   if (!gst_structure_get_int (structure, "width", &info.width)) {
-    GST_ERROR_OBJECT(camerasrc, "failed to get width");
+    GST_ERROR("CameraId=%d  failed to parse width", camerasrc->device_id);
     return FALSE;
   }
 
+  /* parse height from caps */
   if (!gst_structure_get_int (structure, "height", &info.height)) {
-    GST_ERROR_OBJECT(camerasrc, "failed to get height");
+    GST_ERROR("CameraId=%d failed to parse height", camerasrc->device_id);
     return FALSE;
   }
-
-  GST_DEBUG_OBJECT(camerasrc, "format %d width %d height %d", fourcc, info.width, info.height);
 
   int ret = gst_camerasrc_find_match_stream(camerasrc, fourcc,
                             info.width, info.height, camerasrc->interlace_field);
   if (!ret) {
-    GST_ERROR_OBJECT(camerasrc, "no match stream found from HAL");
+    GST_ERROR("CameraId=%d no match stream found from HAL", camerasrc->device_id);
     return ret;
   }
 
-  /* set memtype for stream*/
-  switch(camerasrc->io_mode) {
-    case GST_CAMERASRC_IO_MODE_USERPTR:
-      camerasrc->streams[0].memType = V4L2_MEMORY_USERPTR;
-      break;
-    case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
-      camerasrc->streams[0].memType = V4L2_MEMORY_DMABUF;
-      break;
-    case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
-    case GST_CAMERASRC_IO_MODE_MMAP:
-      camerasrc->streams[0].memType = V4L2_MEMORY_MMAP;
-      break;
-    default:
-      GST_ERROR_OBJECT(camerasrc, "Cannot find corresponding io-mode in %s, please verify if this mode is valid.",__FUNCTION__);
-      break;
+  /* if 'framerate' label is configured in Capsfilter, call HAL interface, otherwise is 0 */
+  int fps_numerator = GST_VIDEO_INFO_FPS_N(&info);
+  int fps_denominator = GST_VIDEO_INFO_FPS_D(&info);
+  if (fps_numerator) {
+    camerasrc->param->setFrameRate(fps_numerator/fps_denominator);
+    camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
   }
 
   stream_list->num_streams = 1;
   stream_list->streams = camerasrc->streams;
   camerasrc->info = info;
+  camerasrc->fmt_name = gst_video_format_to_string(gst_fmt);
+
+  GST_INFO("CameraId=%d Caps info: format=%s width=%d height=%d field=%d framerate %d/%d.",
+             camerasrc->device_id, camerasrc->fmt_name, info.width, info.height,
+             camerasrc->interlace_field, fps_numerator, fps_denominator);
 
   return TRUE;
+}
+
+static void
+gst_camerasrc_set_memtype(Gstcamerasrc* camerasrc)
+{
+  /* set memtype for stream*/
+  switch(camerasrc->io_mode) {
+    case GST_CAMERASRC_IO_MODE_USERPTR:
+          camerasrc->streams[0].memType = V4L2_MEMORY_USERPTR;
+          break;
+    case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
+          camerasrc->streams[0].memType = V4L2_MEMORY_DMABUF;
+          break;
+    case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
+    case GST_CAMERASRC_IO_MODE_MMAP:
+          camerasrc->streams[0].memType = V4L2_MEMORY_MMAP;
+          break;
+    default:
+          break;
+  }
 }
 
 /*
@@ -1834,12 +1776,18 @@ gst_camerasrc_get_configuration_mode(Gstcamerasrc* camerasrc, stream_config_t *s
       case GST_CAMERASRC_SCENE_MODE_HLC:
         stream_list->operation_mode = 0x8004;
         break;
+      case GST_CAMERASRC_SCENE_MODE_CUSTOM_AIC:
+        stream_list->operation_mode = 0x8005;
+        break;
+      case GST_CAMERASRC_SCENE_MODE_VIDEO_LL:
+        stream_list->operation_mode = 0x8006;
+        break;
       case GST_CAMERASRC_SCENE_MODE_NORMAL:
         stream_list->operation_mode = 0;
         break;
       default:
         stream_list->operation_mode = 0x8001;
-        GST_ERROR_OBJECT(camerasrc, "%s, the scene mode is invalid",__FUNCTION__);
+        GST_ERROR("CameraId=%d the scene mode is invalid", camerasrc->device_id);
         break;
     }
 }
@@ -1848,28 +1796,28 @@ static gboolean
 gst_camerasrc_set_caps(GstBaseSrc *src, GstCaps *caps)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
-  Gstcamerasrc *camerasrc;
-  int ret;
+  Gstcamerasrc *camerasrc = GST_CAMERASRC (src);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
 
-  camerasrc = GST_CAMERASRC (src);
-
-  if (!gst_camerasrc_get_caps_info (camerasrc, caps, &camerasrc->stream_list)) {
-    GST_ERROR_OBJECT(camerasrc, "failed to get caps info.");
+  /* Get caps info from structure and match from HAL */
+  if (!gst_camerasrc_get_caps_info (camerasrc, caps, &camerasrc->stream_list))
     return FALSE;
-  }
+
+  /* Set memory type of stream */
+  gst_camerasrc_set_memtype(camerasrc);
 
   /* Create buffer pool */
   camerasrc->pool = gst_camerasrc_buffer_pool_new(camerasrc, caps);
   if (!camerasrc->pool) {
-    GST_ERROR_OBJECT(camerasrc, "new buffer pool failed.");
+    GST_ERROR("CameraId=%d create new buffer pool failed.", camerasrc->device_id);
     return FALSE;
   }
 
   gst_camerasrc_get_configuration_mode(camerasrc, &camerasrc->stream_list);
-  ret = camera_device_config_streams(camerasrc->device_id,  &camerasrc->stream_list);
+  int ret = camera_device_config_streams(camerasrc->device_id,  &camerasrc->stream_list);
   if(ret < 0) {
-    GST_ERROR_OBJECT(camerasrc, "failed to add stream for format %d %dx%d.", camerasrc->streams[0].format,
+    GST_ERROR("CameraId=%d failed to config stream for format %s %dx%d.",
+                     camerasrc->device_id, camerasrc->fmt_name,
                      camerasrc->streams[0].width, camerasrc->streams[0].height);
     return FALSE;
   }
@@ -1883,27 +1831,45 @@ static GstCaps *
 gst_camerasrc_get_caps(GstBaseSrc *src,GstCaps *filter)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
+  Gstcamerasrc *camerasrc = GST_CAMERASRC (src);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
   return gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (GST_CAMERASRC(src)));
+}
+
+/**
+  * Init the HAL and return the camera information in the cam_info for the match device
+  */
+static gboolean
+gst_camerasrc_device_probe(Gstcamerasrc* camerasrc)
+{
+    int ret = camera_hal_init();
+    if (ret < 0) {
+        GST_ERROR("CameraId=%d failed to init HAL.", camerasrc->device_id);
+        return FALSE;
+    }
+
+    ret = get_camera_info(camerasrc->device_id, camerasrc->cam_info);
+    if (ret < 0) {
+        GST_ERROR("CameraId=%d failed to get device name when probe device.", camerasrc->device_id);
+        camera_hal_deinit();
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 static gboolean
 gst_camerasrc_start(GstBaseSrc *basesrc)
 {
-  Gstcamerasrc *camerasrc;
-  GST_INFO("@%s\n",__func__);
-  camerasrc = GST_CAMERASRC (basesrc);
-  int ret;
+  Gstcamerasrc *camerasrc = GST_CAMERASRC (basesrc);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
 
-  if (!gst_camerasrc_device_probe(camerasrc)) {
-    GST_ERROR_OBJECT(camerasrc, "device proble failed ");
+  if (!gst_camerasrc_device_probe(camerasrc))
     return FALSE;
-  }
 
-  ret = camera_device_open(camerasrc->device_id, camerasrc->num_vc);
-
+  int ret = camera_device_open(camerasrc->device_id, camerasrc->num_vc);
   if (ret < 0) {
-     GST_ERROR_OBJECT(camerasrc, "incorrect device_id, failed to open libcamhal device.");
+     GST_ERROR("CameraId=%d failed to open libcamhal device.", camerasrc->device_id);
      camerasrc->camera_open = false;
      camera_hal_deinit();
      return FALSE;
@@ -1921,8 +1887,9 @@ static gboolean
 gst_camerasrc_stop(GstBaseSrc *basesrc)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
-  Gstcamerasrc * camerasrc = GST_CAMERASRC(basesrc);
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(basesrc);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
+
   if (camerasrc->pool)
     gst_object_unref(camerasrc->pool);
   return TRUE;
@@ -1932,7 +1899,9 @@ static GstStateChangeReturn
 gst_camerasrc_change_state (GstElement * element, GstStateChange transition)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(element);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
+
   return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 }
 
@@ -1940,9 +1909,9 @@ static GstCaps *
 gst_camerasrc_fixate(GstBaseSrc * basesrc, GstCaps * caps)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(basesrc);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
   GstStructure *structure;
-  GST_DEBUG_OBJECT (basesrc, "fixated caps %" GST_PTR_FORMAT, caps);
 
   caps = gst_caps_make_writable(caps);
 
@@ -1950,7 +1919,6 @@ gst_camerasrc_fixate(GstBaseSrc * basesrc, GstCaps * caps)
     structure = gst_caps_get_structure (caps, i);
     gst_structure_fixate_field_nearest_int (structure, "width", DEFAULT_FRAME_WIDTH);
     gst_structure_fixate_field_nearest_int (structure, "height", DEFAULT_FRAME_HEIGHT);
-    gst_structure_fixate_field_nearest_fraction (structure, "framerate", DEFAULT_FRAMERATE, 1);
   }
   caps = GST_BASE_SRC_CLASS (parent_class)->fixate (basesrc, caps);
 
@@ -1961,9 +1929,10 @@ static gboolean
 gst_camerasrc_query(GstBaseSrc * bsrc, GstQuery * query )
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
-  gboolean res;
-  res = GST_BASE_SRC_CLASS (parent_class)->query (bsrc, query);
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(bsrc);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
+
+  gboolean res = GST_BASE_SRC_CLASS (parent_class)->query (bsrc, query);
 
   switch (GST_QUERY_TYPE (query)){
     case GST_QUERY_LATENCY:
@@ -1980,7 +1949,9 @@ static gboolean
 gst_camerasrc_negotiate(GstBaseSrc *basesrc)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(basesrc);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
+
   return GST_BASE_SRC_CLASS (parent_class)->negotiate (basesrc);
 }
 
@@ -1988,9 +1959,8 @@ static gboolean
 gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
   Gstcamerasrc * camerasrc = GST_CAMERASRC(bsrc);
-  GstStructure *config;
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
   GstCaps *caps;
   GstAllocationParams params;
   GstBufferPool *pool = NULL;
@@ -1999,9 +1969,10 @@ gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query)
   gboolean update;
 
   switch (camerasrc->io_mode) {
-    case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
+    case GST_CAMERASRC_IO_MODE_USERPTR:
     case GST_CAMERASRC_IO_MODE_MMAP:
-    case GST_CAMERASRC_IO_MODE_USERPTR: {
+    case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
+    {
         if(gst_query_get_n_allocation_pools(query)>0){
           gst_query_parse_nth_allocation_pool(query,0,&pool,&size,&min,&max);
           update=TRUE;
@@ -2039,7 +2010,7 @@ gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query)
       pool = (GstBufferPool*)gst_object_ref(camerasrc->pool);
 
       if (pool) {
-        config = gst_buffer_pool_get_config (pool);
+        GstStructure *config = gst_buffer_pool_get_config (pool);
         gst_buffer_pool_config_get_params (config, NULL, &size, &min, &max);
         gst_structure_free (config);
       }
@@ -2062,14 +2033,14 @@ static GstFlowReturn
 gst_camerasrc_fill(GstPushSrc *src, GstBuffer *buf)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(src);
+  GST_INFO("CameraId=%d.", camerasrc->device_id);
+
   GstClock *clock;
   GstClockTime delay;
-  GstClockTime abs_time, base_time, timestamp, duration;
-  Gstcamerasrc *camerasrc = GST_CAMERASRC(src);
+  GstClockTime gstnow, abs_time, base_time, timestamp, duration;
   GstCamerasrcBufferPool *bpool = GST_CAMERASRC_BUFFER_POOL(camerasrc->pool);
   struct timespec now;
-  GstClockTime gstnow;
 
   if (G_LIKELY(camerasrc->time_start == 0))
     /* time_start is 0 after dqbuf at the first time */
@@ -2081,8 +2052,6 @@ gst_camerasrc_fill(GstPushSrc *src, GstBuffer *buf)
   camerasrc->time_end = gstnow;
 
   duration = (GstClockTime) (camerasrc->time_end - camerasrc->time_start);
-
-  GST_DEBUG_OBJECT(camerasrc,"@%s duration=%lu\n",__func__,duration);
 
   timestamp = GST_BUFFER_TIMESTAMP (buf);
 
@@ -2114,9 +2083,9 @@ gst_camerasrc_fill(GstPushSrc *src, GstBuffer *buf)
           delay = abs_time - camerasrc->time_end;
       else
           delay = 0;
-      GST_DEBUG_OBJECT (camerasrc, "ts: %" GST_TIME_FORMAT " now %" GST_TIME_FORMAT
-              " delay %" GST_TIME_FORMAT, GST_TIME_ARGS (timestamp),
-              GST_TIME_ARGS (gstnow), GST_TIME_ARGS (delay));
+      GST_DEBUG("CameraId=%d ts: %" GST_TIME_FORMAT " now %" GST_TIME_FORMAT
+          " delay %" GST_TIME_FORMAT, camerasrc->device_id, GST_TIME_ARGS (timestamp),
+          GST_TIME_ARGS (gstnow), GST_TIME_ARGS (delay));
   } else {
       /* we assume 1 frame latency otherwise */
       if (GST_CLOCK_TIME_IS_VALID (duration))
@@ -2144,6 +2113,8 @@ gst_camerasrc_fill(GstPushSrc *src, GstBuffer *buf)
   clock_gettime (CLOCK_MONOTONIC, &now);
   gstnow = GST_TIMESPEC_TO_TIME (now);
   camerasrc->time_start = gstnow;
+
+  GST_INFO("CameraId=%d duration=%lu\n", camerasrc->device_id, duration);
 
   return GST_FLOW_OK;
 }

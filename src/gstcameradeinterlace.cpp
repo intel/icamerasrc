@@ -66,17 +66,6 @@
 
 using namespace icamera;
 
-GST_DEBUG_CATEGORY_EXTERN(gst_camerasrc_debug);
-#define GST_CAT_DEFAULT gst_camerasrc_debug
-
-bool
-gst_camerasrc_isPlanarFormat(int format)
-{
-    return (format == V4L2_PIX_FMT_NV12 || format == V4L2_PIX_FMT_NV21
-         || format == V4L2_PIX_FMT_YUV420 || format == V4L2_PIX_FMT_YVU420
-         || format == V4L2_PIX_FMT_NV16);
-}
-
 /* This function is used for interlaced frame
  * It will return the number of lines that contains valid data
  * For packed format, 'Y' and 'UY' conponents are stored in a single array
@@ -102,7 +91,6 @@ gst_camerasrc_get_number_of_valid_lines(int format, int height)
     case V4L2_PIX_FMT_XBGR32:
       return height;
     default:
-      GST_ERROR("Unsupported format\n");
       break;
   }
 

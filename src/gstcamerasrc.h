@@ -52,6 +52,7 @@
 #include <gst/base/gstpushsrc.h>
 
 G_BEGIN_DECLS
+
 #define ALIGN(val, alignment) (((val)+(alignment)-1) & ~((alignment)-1))
 #define ALIGN_64(val) ALIGN(val, 64)
 
@@ -88,8 +89,6 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_SCENE_MODE GST_CAMERASRC_SCENE_MODE_AUTO
 /* Default value of enum type property 'sensor-resolution':1080p */
 #define DEFAULT_PROP_SENSOR_RESOLUTION GST_CAMERASRC_SENSOR_RESOLUTION_1080P
-/* Default value of enum type property 'fps':25 fps */
-#define DEFAULT_PROP_FPS GST_CAMERASRC_FPS_30
 /* Default value of enum type property 'ae-mode':auto */
 #define DEFAULT_PROP_AE_MODE GST_CAMERASRC_AE_MODE_AUTO
 /* Default value of enum type property 'weight-grid-mode':auto */
@@ -197,7 +196,9 @@ typedef enum
   GST_CAMERASRC_SCENE_MODE_NORMAL = 4,
   GST_CAMERASRC_SCENE_MODE_INDOOR = 5,
   GST_CAMERASRC_SCENE_MODE_OUTOOR = 6,
-  GST_CAMERASRC_SCENE_MODE_DISABLED = 7,
+  GST_CAMERASRC_SCENE_MODE_CUSTOM_AIC = 7,
+  GST_CAMERASRC_SCENE_MODE_VIDEO_LL = 8,
+  GST_CAMERASRC_SCENE_MODE_DISABLED = 9,
 } GstCamerasrcSceneMode;
 
 typedef enum
@@ -206,14 +207,6 @@ typedef enum
   GST_CAMERASRC_SENSOR_RESOLUTION_720P = 1,
   GST_CAMERASRC_SENSOR_RESOLUTION_4K = 2,
 } GstCanerasrcSensorResolution;
-
-typedef enum
-{
-  GST_CAMERASRC_FPS_25 = 0,
-  GST_CAMERASRC_FPS_30 = 1,
-  GST_CAMERASRC_FPS_50 = 2,
-  GST_CAMERASRC_FPS_60 = 3,
-} GstCamerasrcFps;
 
 typedef enum
 {
@@ -339,7 +332,7 @@ struct _Gst3AManualControl
   /* Video Adjustment*/
   int scene_mode;
   int sensor_resolution;
-  int fps;
+
   /* Custom Aic Parameter */
   gchar *custom_aic_param;
 
@@ -369,23 +362,23 @@ struct _Gstcamerasrc
   /* Buffer configuration*/
   guint64 offset;
   int stream_id;
-  int interlace_field;
   guint bpl;
-  guint number_of_buffers;
   GstVideoInfo info;
+  const char *fmt_name;
   stream_config_t  stream_list;
   stream_t      streams[1]; //FIXME: Support only one stream now.
   camera_info_t cam_info;
-  const char *cam_info_name;
   gboolean first_frame;
 
   /*non-3A properties*/
   int number_of_cameras;
   int device_id;
+  int interlace_field;
   int deinterlace_method;
   int io_mode;
   int capture_mode;
-  guint print_fps;
+  guint number_of_buffers;
+  gboolean print_fps;
   GstFpsDebug fps_debug;
   guint num_vc;
 
