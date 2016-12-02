@@ -77,8 +77,6 @@ G_BEGIN_DECLS
 #define DEFAULT_DEINTERLACE_METHOD GST_CAMERASRC_DEINTERLACE_METHOD_NONE
 /* Default value of enum type property 'iris-mode':auto */
 #define DEFAULT_PROP_IRIS_MODE GST_CAMERASRC_IRIS_MODE_AUTO
-/* Default value of enum type property 'wdr-mode':off */
-#define DEFAULT_PROP_WDR_MODE GST_CAMERASRC_WDR_MODE_AUTO
 /* Default value of enum type property 'blc-area-mode':off */
 #define DEFAULT_PROP_BLC_AREA_MODE GST_CAMERASRC_BLC_AREA_MODE_OFF
 /* Default value of enum type property 'awb-mode':auto */
@@ -100,6 +98,8 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_ANTIBANDING_MODE GST_CAMERASRC_ANTIBANDING_MODE_AUTO
 /* Default value of enum type property 'exp-priority':auto */
 #define DEFAULT_PROP_EXPOSURE_PRIORITY GST_CAMERASRC_EXPOSURE_PRIORITY_AUTO
+/* Default value of enum type property 'video-stabilization':off */
+#define DEFAULT_PROP_VIDEO_STABILIZATION_MODE GST_CAMERASRC_VIDEO_STABILIZATION_MODE_OFF
 
 /* Default value of string type properties */
 #define DEFAULT_PROP_WP NULL
@@ -149,13 +149,6 @@ typedef enum
   GST_CAMERASRC_IRIS_MODE_MANUAL = 1,
   GST_CAMERASRC_IRIS_MODE_CUSTOMIZED = 2,
 } GstCamerasrcIrisMode;
-
-typedef enum
-{
-  GST_CAMERASRC_WDR_MODE_AUTO = 0,
-  GST_CAMERASRC_WDR_MODE_ON = 1,
-  GST_CAMERASRC_WDR_MODE_OFF = 2,
-} GstCamerasrcWdrMode;
 
 typedef enum
 {
@@ -258,6 +251,12 @@ typedef enum
   GST_CAMERASRC_EXPOSURE_PRIORITY_APERTURE = 3,
 } GstCamerasrcExposurePriority;
 
+typedef enum
+{
+  GST_CAMERASRC_VIDEO_STABILIZATION_MODE_OFF = 0,
+  GST_CAMERASRC_VIDEO_STABILIZATION_MODE_ON = 1,
+} GstCamerasrcVideoStabilizationMode;
+
 #define GST_TYPE_CAMERASRC \
   (gst_camerasrc_get_type())
 #define GST_CAMERASRC(obj) \
@@ -309,7 +308,6 @@ struct _Gst3AManualControl
   int converge_speed;
   int converge_speed_mode;
   /* Backlight Settings*/
-  int wdr_mode;
   int blc_area_mode;
   guint wdr_level;
   /* White Balance*/
@@ -381,6 +379,7 @@ struct _Gstcamerasrc
   gboolean print_fps;
   GstFpsDebug fps_debug;
   guint num_vc;
+  int video_stabilization_mode;
 
   /*3A properties */
   gboolean camera_open;

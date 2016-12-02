@@ -109,7 +109,6 @@ enum
   PROP_CONVERGE_SPEED,
   PROP_CONVERGE_SPEED_MODE,
   /* Backlight Settings*/
-  PROP_WDR_MODE,
   PROP_BLC_AREA_MODE,
   PROP_WDR_LEVEL,
   /* White Balance*/
@@ -136,6 +135,7 @@ enum
   PROP_CUSTOM_AIC_PARAMETER,
 
   PROP_ANTIBANDING_MODE,
+  PROP_VIDEO_STABILIZATION_MODE,
 };
 
 #define gst_camerasrc_parent_class parent_class
@@ -316,28 +316,6 @@ gst_camerasrc_iris_mode_get_type(void)
 }
 
 static GType
-gst_camerasrc_wdr_mode_get_type(void)
-{
-  PERF_CAMERA_ATRACE();
-  static GType wdr_mode_type = 0;
-
-  static const GEnumValue method_types[] = {
-    {GST_CAMERASRC_WDR_MODE_AUTO,
-          "Auto", "auto"},
-    {GST_CAMERASRC_WDR_MODE_ON,
-          "WDR mode", "on"},
-    {GST_CAMERASRC_WDR_MODE_OFF,
-          "Non-WDR mode", "off"},
-     {0, NULL, NULL},
-   };
-
-  if (!wdr_mode_type) {
-    wdr_mode_type = g_enum_register_static ("GstCamerasrcWdrMode", method_types);
-  }
-  return wdr_mode_type;
-}
-
-static GType
 gst_camerasrc_blc_area_mode_get_type(void)
 {
   PERF_CAMERA_ATRACE();
@@ -355,6 +333,26 @@ gst_camerasrc_blc_area_mode_get_type(void)
     blc_area_mode_type = g_enum_register_static ("GstCamerasrcBlcAreaMode", method_types);
   }
   return blc_area_mode_type;
+}
+
+static GType
+gst_camerasrc_video_stabilization_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType video_stabilization_mode_type = 0;
+
+  static const GEnumValue modes[] = {
+    {GST_CAMERASRC_VIDEO_STABILIZATION_MODE_OFF,
+          "Off", "off"},
+    {GST_CAMERASRC_VIDEO_STABILIZATION_MODE_ON,
+          "On", "on"},
+    {0, NULL, NULL},
+   };
+
+  if (!video_stabilization_mode_type) {
+    video_stabilization_mode_type = g_enum_register_static ("GstCamerasrcVideoStabilizationMode", modes);
+  }
+  return video_stabilization_mode_type;
 }
 
 static GType
@@ -744,10 +742,6 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_float("gain","Gain","Implement total gain or maximal gain(only valid in manual AE mode).Unit: db",
         0.0,60.0,0.0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
-  g_object_class_install_property (gobject_class, PROP_WDR_MODE,
-      g_param_spec_enum ("wdr-mode", "WDR mode", "WDR mode",
-          gst_camerasrc_wdr_mode_get_type(), DEFAULT_PROP_WDR_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
   g_object_class_install_property (gobject_class, PROP_BLC_AREA_MODE,
       g_param_spec_enum ("blc-area-mode", "BLC area mode", "BLC area mode",
           gst_camerasrc_blc_area_mode_get_type(), DEFAULT_PROP_BLC_AREA_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -860,6 +854,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_int("temporal","Temporal","NR level: Temporal",
         0,100,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_VIDEO_STABILIZATION_MODE,
+      g_param_spec_enum ("video-stabilization-mode", "Video stabilization mode", "Video stabilization mode",
+          gst_camerasrc_video_stabilization_mode_get_type(), DEFAULT_PROP_VIDEO_STABILIZATION_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   gst_element_class_set_static_metadata(gstelement_class,
       "icamerasrc",
       "Source/Video",
@@ -907,6 +905,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->camera_open = false;
   camerasrc->num_vc = 0;
   camerasrc->debugLevel = 0;
+  camerasrc->video_stabilization_mode = DEFAULT_PROP_VIDEO_STABILIZATION_MODE;
 
   /* set default value for 3A manual control*/
   camerasrc->param = new Parameters;
@@ -915,7 +914,6 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   memset(camerasrc->man_ctl.awb_region, 0, sizeof(camerasrc->man_ctl.awb_region));
   memset(camerasrc->man_ctl.color_transform, 0, sizeof(camerasrc->man_ctl.color_transform));
   camerasrc->man_ctl.iris_mode = DEFAULT_PROP_IRIS_MODE;
-  camerasrc->man_ctl.wdr_mode = DEFAULT_PROP_WDR_MODE;
   camerasrc->man_ctl.wdr_level = DEFAULT_PROP_WDR_LEVEL;
   camerasrc->man_ctl.blc_area_mode = DEFAULT_PROP_BLC_AREA_MODE;
   camerasrc->man_ctl.awb_mode = DEFAULT_PROP_AWB_MODE;
@@ -1082,27 +1080,6 @@ gst_camerasrc_parse_white_point(Gstcamerasrc *src, gchar *wp_str, camera_coordin
   return 0;
 }
 
-static gboolean
-gst_camerasrc_check_device_match(Gstcamerasrc *src, const char* device_name)
-{
-  camera_info_t cam_info;
-  int ret = 0;
-
-  for (int i = 0; i < src->number_of_cameras; i++) {
-    ret = get_camera_info(i, cam_info);
-    if (ret < 0) {
-      g_print("failed to get device name.");
-      return FALSE;
-    }
-    if (strcmp(device_name, cam_info.name) == 0 &&
-        src->device_id == i) {
-      return TRUE;
-    }
-  }
-
-  return FALSE;
-}
-
 static int
 gst_camerasrc_check_exposuretime_range(Gstcamerasrc *src, GEnumValue *values, int exp)
 {
@@ -1165,6 +1142,10 @@ gst_camerasrc_config_scene_mode_params(Gstcamerasrc *src)
   src->param->setSceneMode((camera_scene_mode_t)src->man_ctl.scene_mode);
   src->param->setExposureTime((int64_t)adjusted_exp);
   src->param->setSensitivityGain(adjusted_gain);
+
+  /* assign adjusted value to exposure-time and gain */
+  src->man_ctl.exposure_time = adjusted_exp;
+  src->man_ctl.gain = adjusted_gain;
 }
 
 static void
@@ -1174,7 +1155,6 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
   PERF_CAMERA_ATRACE();
   Gstcamerasrc *src = GST_CAMERASRC (object);
   int ret = 0;
-  int enum_value = -1;
   gboolean manual_setting = true;
 
   camera_awb_gains_t awb_gain;
@@ -1291,23 +1271,6 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_GAIN:
       src->man_ctl.gain = g_value_get_float (value);
       gst_camerasrc_config_scene_mode_params(src);
-      break;
-    case PROP_WDR_MODE:
-      src->param->setWdrMode((camera_wdr_mode_t)g_value_get_enum(value));
-      src->man_ctl.wdr_mode = g_value_get_enum (value);
-      /* W/A: When wdr-mode is on and specific camera is selected,
-       *   use scene mode to override wdr mode. */
-      if (gst_camerasrc_check_device_match(src, "imx185")) {
-          if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_AUTO)
-            enum_value = GST_CAMERASRC_SCENE_MODE_AUTO;
-          else if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_ON)
-            enum_value = GST_CAMERASRC_SCENE_MODE_HDR;
-          else if (src->man_ctl.wdr_mode == GST_CAMERASRC_WDR_MODE_OFF)
-            enum_value = GST_CAMERASRC_SCENE_MODE_ULL;
-
-          src->param->setSceneMode((camera_scene_mode_t)enum_value);
-          src->man_ctl.scene_mode = enum_value;
-      }
       break;
     case PROP_BLC_AREA_MODE:
       src->param->setBlcAreaMode((camera_blc_area_mode_t)g_value_get_enum(value));
@@ -1453,6 +1416,10 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
     case PROP_TEMPORAL:
       src->man_ctl.temporal = g_value_get_int (value);
       break;
+    case PROP_VIDEO_STABILIZATION_MODE:
+      src->param->setVideoStabilizationMode((camera_video_stabilization_mode_t)g_value_get_enum(value));
+      src->video_stabilization_mode = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1524,9 +1491,6 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_GAIN:
       g_value_set_float (value, src->man_ctl.gain);
-      break;
-    case PROP_WDR_MODE:
-      g_value_set_enum (value, src->man_ctl.wdr_mode);
       break;
     case PROP_BLC_AREA_MODE:
       g_value_set_enum (value, src->man_ctl.blc_area_mode);
@@ -1611,6 +1575,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_TEMPORAL:
       g_value_set_int (value, src->man_ctl.temporal);
+      break;
+    case PROP_VIDEO_STABILIZATION_MODE:
+      g_value_set_enum (value, src->video_stabilization_mode);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

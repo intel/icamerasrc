@@ -370,6 +370,23 @@ gst_camerasrc_alloc_mmap(GstCamerasrcBufferPool *pool,
   return GST_FLOW_OK;
 }
 
+static gboolean
+gst_camerasrc_is_dma_buffer (GstBuffer *buf)
+{
+  GstMemory *mem;
+
+  if (gst_buffer_n_memory (buf) < 1) {
+    GST_ERROR("the amount of memory blocks is smaller than 1.");
+    return FALSE;
+  }
+
+  mem = gst_buffer_peek_memory (buf, 0);
+  if (!mem || !gst_is_dmabuf_memory (mem))
+    return FALSE;
+
+  return TRUE;
+}
+
 static int
 gst_camerasrc_alloc_dma_export(GstCamerasrcBufferPool *pool,
       GstBuffer **alloc_buffer, GstCamerasrcMeta **meta)
@@ -400,12 +417,20 @@ gst_camerasrc_alloc_dma_export(GstCamerasrcBufferPool *pool,
 
   mem = gst_dmabuf_allocator_alloc (pool->allocator, dmafd, pool->size);
   gst_buffer_append_memory (*alloc_buffer, mem);
+  if (!gst_camerasrc_is_dma_buffer(*alloc_buffer))
+    goto err_not_dmabuf;
 
   return GST_FLOW_OK;
 
 err_get_fd:
   {
     GST_ERROR("CameraId=%d failed to get fd of DMA export buffer.", src->device_id);
+    gst_buffer_unref (*alloc_buffer);
+    return GST_FLOW_ERROR;
+  }
+err_not_dmabuf:
+  {
+    GST_ERROR("CameraId=%d not a dma buffer.", src->device_id);
     gst_buffer_unref (*alloc_buffer);
     return GST_FLOW_ERROR;
   }
@@ -437,6 +462,9 @@ gst_camerasrc_alloc_dma_import(GstCamerasrcBufferPool *pool,
   if ((*meta)->buffer->dmafd < 0)
     goto err_get_fd;
 
+  if (!gst_camerasrc_is_dma_buffer(*alloc_buffer))
+    goto err_not_dmabuf;
+
   GST_DEBUG("CameraId=%d DMA import buffer fd=%d.", src->device_id, (*meta)->buffer->dmafd);
 
   (*meta)->buffer->s.memType = V4L2_MEMORY_DMABUF;
@@ -452,6 +480,12 @@ gst_camerasrc_alloc_dma_import(GstCamerasrcBufferPool *pool,
   err_get_fd:
   {
     GST_ERROR("CameraId=%d failed to get fd of DMA import buffer.", src->device_id);
+    gst_buffer_unref (*alloc_buffer);
+    return GST_FLOW_ERROR;
+  }
+  err_not_dmabuf:
+  {
+    GST_ERROR("CameraId=%d not a dma buffer.", src->device_id);
     gst_buffer_unref (*alloc_buffer);
     return GST_FLOW_ERROR;
   }

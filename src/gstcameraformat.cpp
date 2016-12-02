@@ -171,14 +171,14 @@ set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps 
         gst_structure_set (structure,
               "width", G_TYPE_INT, res_range.range.max_w,
               "height", G_TYPE_INT, res_range.range.max_h,
-              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
+              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 120, 1,
               "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
               NULL);
       else
         gst_structure_set (structure,
               "width", GST_TYPE_INT_RANGE, res_range.range.min_w, res_range.range.max_w,
               "height", GST_TYPE_INT_RANGE, res_range.range.min_h, res_range.range.max_h,
-              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 60, 1,
+              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 120, 1,
               "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
               NULL);
 
