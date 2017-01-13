@@ -53,12 +53,10 @@
 
 G_BEGIN_DECLS
 
-#define ALIGN(val, alignment) (((val)+(alignment)-1) & ~((alignment)-1))
-#define ALIGN_64(val) ALIGN(val, 64)
-
 #define DEFAULT_FRAME_WIDTH 1920
 #define DEFAULT_FRAME_HEIGHT 1080
-#define DEFAULT_FRAMERATE 30
+#define DEFAULT_FPS_N 30
+#define DEFAULT_FPS_D 1
 
 /* Default value of int type properties */
 #define DEFAULT_PROP_BUFFERCOUNT 6
@@ -66,6 +64,7 @@ G_BEGIN_DECLS
 #define MIN_PROP_BUFFERCOUNT 2
 #define DEFAULT_PROP_WDR_LEVEL 100
 #define DEFAULT_PROP_PRINT_FPS false
+#define DEFAULT_PROP_PRINT_FIELD false
 
 /* Default value of enum type property 'capture-mode': preview */
 #define DEFAULT_PROP_CAPTURE_MODE GST_CAMERASRC_CAPTURE_MODE_PREVIEW
@@ -81,8 +80,6 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_BLC_AREA_MODE GST_CAMERASRC_BLC_AREA_MODE_OFF
 /* Default value of enum type property 'awb-mode':auto */
 #define DEFAULT_PROP_AWB_MODE GST_CAMERASRC_AWB_MODE_AUTO
-/* Default value of enum type property 'nr-mode':off */
-#define DEFAULT_PROP_NR_MODE GST_CAMERASRC_NR_MODE_OFF
 /* Default value of enum type property 'scene-mode':auto */
 #define DEFAULT_PROP_SCENE_MODE GST_CAMERASRC_SCENE_MODE_AUTO
 /* Default value of enum type property 'sensor-resolution':1080p */
@@ -100,18 +97,16 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_EXPOSURE_PRIORITY GST_CAMERASRC_EXPOSURE_PRIORITY_AUTO
 /* Default value of enum type property 'video-stabilization':off */
 #define DEFAULT_PROP_VIDEO_STABILIZATION_MODE GST_CAMERASRC_VIDEO_STABILIZATION_MODE_OFF
+/* Default value of enum type property 'buffer-flag': read */
+#define DEFAULT_PROP_BUFFER_USAGE GST_CAMERASRC_BUFFER_USAGE_NONE
 
 /* Default value of string type properties */
 #define DEFAULT_PROP_WP NULL
 #define DEFAULT_PROP_AE_REGION NULL
-#define DEFAULT_PROP_AWB_REGION NULL
 #define DEFAULT_PROP_CCT_RANGE NULL
 #define DEFAULT_PROP_COLOR_TRANSFORM NULL
 #define DEFAULT_PROP_CUSTOM_AIC_PARAMETER NULL
-
-// Macro for memcpy
-#define MEMCPY_S(dest, dmax, src, smax) \
-  memcpy((dest), (src), std::min((size_t)(dmax), (size_t)(smax)))
+#define DEFAULT_PROP_INPUT_FORMAT NULL
 
 typedef enum
 {
@@ -124,9 +119,8 @@ typedef enum
 {
   GST_CAMERASRC_DEINTERLACE_METHOD_NONE = 0,
   GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB = 1,
-  GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB = 2,
-  GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE = 3,
-  GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_WEAVE = 4,
+  GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE = 2,
+  GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_WEAVE = 3,
 } GstCamerasrcDeinterlaceMethod;
 
 typedef enum
@@ -253,6 +247,14 @@ typedef enum
 
 typedef enum
 {
+  GST_CAMERASRC_BUFFER_USAGE_NONE = 0,
+  GST_CAMERASRC_BUFFER_USAGE_READ = 1,
+  GST_CAMERASRC_BUFFER_USAGE_WRITE = 2,
+  GST_CAMERASRC_BUFFER_USAGE_DMA_EXPORT = 3,
+} GstCamerasrcBufferUsage;
+
+typedef enum
+{
   GST_CAMERASRC_VIDEO_STABILIZATION_MODE_OFF = 0,
   GST_CAMERASRC_VIDEO_STABILIZATION_MODE_ON = 1,
 } GstCamerasrcVideoStabilizationMode;
@@ -312,7 +314,6 @@ struct _Gst3AManualControl
   guint wdr_level;
   /* White Balance*/
   int awb_mode;
-  char awb_region[128];
   gchar *cct_range;
   gchar *wp;
   char color_transform[64];
@@ -322,11 +323,6 @@ struct _Gst3AManualControl
   guint awb_gain_r;
   guint awb_gain_g;
   guint awb_gain_b;
-  /* Noise Reduction*/
-  int nr_mode;
-  guint overall;
-  guint spatial;
-  guint temporal;
   /* Video Adjustment*/
   int scene_mode;
   int sensor_resolution;
@@ -352,10 +348,11 @@ struct _Gstcamerasrc
   GstBufferPool *downstream_pool;
 
   /* Weave buffers are used only when deinterlace_method='sw_weave'
-    * top stores odd lines
-    * bottom stores even lines */
+    * top stores odd lines, bottom stores even lines, previous_buffer
+    * stores data from previous buffer */
   camera_buffer_t *top;
   camera_buffer_t *bottom;
+  camera_buffer_t *previous_buffer;
 
   /* Buffer configuration*/
   guint64 offset;
@@ -367,6 +364,7 @@ struct _Gstcamerasrc
   stream_t      streams[1]; //FIXME: Support only one stream now.
   camera_info_t cam_info;
   gboolean first_frame;
+  int buffer_usage;
 
   /*non-3A properties*/
   int number_of_cameras;
@@ -377,9 +375,11 @@ struct _Gstcamerasrc
   int capture_mode;
   guint number_of_buffers;
   gboolean print_fps;
+  gboolean print_field;
   GstFpsDebug fps_debug;
   guint num_vc;
   int video_stabilization_mode;
+  const char *input_fmt;
 
   /*3A properties */
   gboolean camera_open;

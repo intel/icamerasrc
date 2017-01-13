@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2016 Intel Corporation
+ * Copyright (C) 2016 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -41,19 +41,52 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GST_CAMERASRC_DEINTERLACE_H__
-#define __GST_CAMERASRC_DEINTERLACE_H__
+#ifndef _GST_CAMERASRC_UTILS_H_
+#define _GST_CAMERASRC_UTILS_H_
 
 #include <gst/gst.h>
-#include <gst/base/gstpushsrc.h>
-#include "gstcamerasrc.h"
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <iostream>
+#include <sys/syscall.h>
+#include "gst/video/video.h"
+#include <linux/videodev2.h>
 
-bool gst_camerasrc_isPlanarFormat(int format);
-void gst_camerasrc_copy_field(Gstcamerasrc *camerasrc,
-        camera_buffer_t *src,
-        camera_buffer_t *dst);
-void gst_camerasrc_update_previous_buffer(Gstcamerasrc *camerasrc,
-        camera_buffer_t *currentBuffer, int &seq_diff);
-int gst_camerasrc_deinterlace_frame(Gstcamerasrc *camerasrc, camera_buffer_t *buffer);
+using namespace std;
 
-#endif /* __GST_CAMERASRC_DEINTERLACE_H__ */
+#define ALIGN(val, alignment) (((val)+(alignment)-1) & ~((alignment)-1))
+#define ALIGN_64(val) ALIGN(val, 64)
+
+// Macro for memcpy
+#define MEMCPY_S(dest, dmax, src, smax) \
+  memcpy((dest), (src), std::min((size_t)(dmax), (size_t)(smax)))
+
+#define ARRAY_SIZE(array)    (sizeof(array) / sizeof((array)[0]))
+
+#define gettid() syscall(SYS_gettid)
+
+#define PRINT_FIELD(a, f) \
+      do { \
+              if (a == 2)  {f = "top";} \
+              else if (a == 3) {f = "bottom";} \
+              else if (a == 7) {f = "alternate";} \
+              else {f = "none";} \
+      } while(0)
+
+namespace CameraSrcUtils {
+
+  int gst_fmt_2_fourcc(GstVideoFormat gst_fmt);
+
+  GstVideoFormat fourcc_2_gst_fmt(int fourcc);
+
+  gboolean check_format_by_name(const char *name);
+
+  int string_2_fourcc(const char *fmt_string);
+
+  int get_number_of_valid_lines(int format, int height);
+
+}
+
+#endif

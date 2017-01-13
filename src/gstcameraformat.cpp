@@ -59,6 +59,7 @@
 #include "gstcamerasrc.h"
 #include "gstcameraformat.h"
 #include "Parameters.h"
+#include "utils.h"
 
 using namespace icamera;
 using std::vector;
