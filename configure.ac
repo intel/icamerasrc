@@ -89,7 +89,7 @@ AC_ARG_WITH([cameralib],
 
 AC_SUBST([HAL_LIB], [-$with_cameralib])
 
-AC_ARG_WITH([androidstubs]
+AC_ARG_WITH([androidstubs],
   [AS_HELP_STRING([--with-androidstubs], [add android stubs for linking] @@)],
   [],
   [with_androidstubs=no])

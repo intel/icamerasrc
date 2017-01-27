@@ -46,12 +46,19 @@ lib_LTLIBRARIES = libgsticamerainterface.la
 libgsticamerainterface_la_SOURCES = gstcamerainterface.cpp
 
 libgsticamerainterface_la_CPPFLAGS = -std=c++11 \
+    -Wall -Werror \
     $(GST_CFLAGS) \
     $(LIBUTILS_CFLAGS) \
     -I$(LIBCAMHAL_INSTALL_DIR)/include/api
 
+# for hardening-check
+libgsticamerainterface_la_CPPFLAGS += -fstack-protector-all -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
+
 libgsticamerainterface_la_LIBADD = $(GST_LIBS) \
     $(HAL_LIB)
+
+# for hardening-check
+libgsticamerainterface_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now
 
 libgsticamerainterface_la_LIBTOOLFLAGS = --tag=disable-static
 

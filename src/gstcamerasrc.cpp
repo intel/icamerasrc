@@ -962,6 +962,9 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->video_stabilization_mode = DEFAULT_PROP_VIDEO_STABILIZATION_MODE;
   camerasrc->input_fmt = DEFAULT_PROP_INPUT_FORMAT;
   camerasrc->buffer_usage= DEFAULT_PROP_BUFFER_USAGE;
+  camerasrc->time_start = 0;
+  camerasrc->time_end = 0;
+  camerasrc->gstbuf_timestamp = 0;
 
   /* set default value for 3A manual control*/
   camerasrc->param = new Parameters;
@@ -2062,6 +2065,12 @@ gst_camerasrc_decide_allocation(GstBaseSrc *bsrc,GstQuery *query)
  return GST_BASE_SRC_CLASS (parent_class)->decide_allocation (bsrc, query);
 }
 
+
+/* Gst Clock: |---------------|-----------------------|--------------|---....
+ *     (starting_time:0) (base_time)            (get v4l2 ts) (get local ts)
+ *                            |                                      |
+ *                            |<--------gst buffer timestamp-------->|
+ */
 static GstFlowReturn
 gst_camerasrc_fill(GstPushSrc *src, GstBuffer *buf)
 {
@@ -2070,82 +2079,36 @@ gst_camerasrc_fill(GstPushSrc *src, GstBuffer *buf)
   GST_INFO("CameraId=%d.", camerasrc->device_id);
 
   GstClock *clock;
-  GstClockTime delay;
-  GstClockTime gstnow, abs_time, base_time, timestamp, duration;
+  GstClockTime base_time, timestamp, duration;
   GstCamerasrcBufferPool *bpool = GST_CAMERASRC_BUFFER_POOL(camerasrc->pool);
-  struct timespec now;
+
+  timestamp = GST_BUFFER_TIMESTAMP (buf);
+
+  if (!GST_CLOCK_TIME_IS_VALID(timestamp))
+    return GST_FLOW_OK;
 
   if (G_LIKELY(camerasrc->time_start == 0))
     /* time_start is 0 after dqbuf at the first time */
     /* use base time as starting point*/
     camerasrc->time_start = GST_ELEMENT (camerasrc)->base_time;
 
-  clock_gettime (CLOCK_MONOTONIC, &now);
-  gstnow = GST_TIMESPEC_TO_TIME (now);
-  camerasrc->time_end = gstnow;
-
   duration = (GstClockTime) (camerasrc->time_end - camerasrc->time_start);
 
-  timestamp = GST_BUFFER_TIMESTAMP (buf);
+  clock = GST_ELEMENT_CLOCK(camerasrc);
 
-  /* timestamps, LOCK to get clock and base time. */
-  GST_OBJECT_LOCK (camerasrc);
-  if ((clock = GST_ELEMENT_CLOCK (camerasrc))) {
-      /* we have a clock, get base time and ref clock */
-      base_time = GST_ELEMENT(camerasrc)->base_time;
-      gst_object_ref (clock);
-  } else {
-      /* no clock, can't set timestamps */
-      base_time = GST_CLOCK_TIME_NONE;
-  }
-  GST_OBJECT_UNLOCK (camerasrc);
-
-  /* sample pipeline clock */
   if (clock) {
-      abs_time = gst_clock_get_time (clock);
-      gst_object_unref (clock);
+    base_time = GST_ELEMENT_CAST (camerasrc)->base_time;
+    /* gstbuf_timestamp is the accurate timestamp since the base_time */
+    camerasrc->gstbuf_timestamp = gst_clock_get_time(clock) - base_time;
   } else {
-      abs_time = GST_CLOCK_TIME_NONE;
+    base_time = GST_CLOCK_TIME_NONE;
   }
 
-  if (timestamp != GST_CLOCK_TIME_NONE) {
-      GTimeVal now;
-      g_get_current_time(&now);
-      gstnow = GST_TIMEVAL_TO_TIME(now);
-      if (gstnow > timestamp)
-          delay = abs_time - camerasrc->time_end;
-      else
-          delay = 0;
-      GST_DEBUG("CameraId=%d ts: %" GST_TIME_FORMAT " now %" GST_TIME_FORMAT
-          " delay %" GST_TIME_FORMAT, camerasrc->device_id, GST_TIME_ARGS (timestamp),
-          GST_TIME_ARGS (gstnow), GST_TIME_ARGS (delay));
-  } else {
-      /* we assume 1 frame latency otherwise */
-      if (GST_CLOCK_TIME_IS_VALID (duration))
-          delay = duration;
-      else
-          delay = 0;
-  }
-
-  if (G_LIKELY (abs_time != GST_CLOCK_TIME_NONE)) {
-      /* the time now is the time of the clock minus the base time */
-      timestamp = abs_time - base_time;
-      if (timestamp > delay)
-        timestamp -= delay;
-      else
-        timestamp = 0;
-  } else {
-      timestamp = GST_CLOCK_TIME_NONE;
-  }
-
-  //set buffer metadata.
-  GST_BUFFER_TIMESTAMP(buf) = timestamp;
+  GST_BUFFER_PTS(buf) = camerasrc->gstbuf_timestamp;
   GST_BUFFER_OFFSET(buf) = bpool->acquire_buffer_index;
   GST_BUFFER_OFFSET_END(buf) = bpool->acquire_buffer_index + 1;
   GST_BUFFER_DURATION(buf) = duration;
-  clock_gettime (CLOCK_MONOTONIC, &now);
-  gstnow = GST_TIMESPEC_TO_TIME (now);
-  camerasrc->time_start = gstnow;
+  camerasrc->time_start = camerasrc->time_end;
 
   GST_INFO("CameraId=%d duration=%lu\n", camerasrc->device_id, duration);
 

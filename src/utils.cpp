@@ -56,6 +56,7 @@ static const FormatCvt gFormatMapping[] = {
   { "UYVY", GST_VIDEO_FORMAT_UYVY, V4L2_PIX_FMT_UYVY },
   { "NV12", GST_VIDEO_FORMAT_NV12, V4L2_PIX_FMT_NV12 },
   { "RGBx", GST_VIDEO_FORMAT_RGBx, V4L2_PIX_FMT_XRGB32 },
+  { "BGRA", GST_VIDEO_FORMAT_BGRA, V4L2_PIX_FMT_BGR32 },
   { "BGR", GST_VIDEO_FORMAT_BGR, V4L2_PIX_FMT_BGR24 },
   { "RGB16", GST_VIDEO_FORMAT_RGB16, V4L2_PIX_FMT_RGB565 },
   { "NV16", GST_VIDEO_FORMAT_NV16, V4L2_PIX_FMT_NV16 },
@@ -127,6 +128,7 @@ int CameraSrcUtils:: get_number_of_valid_lines(int format, int height)
     case V4L2_PIX_FMT_BGR24:
     case V4L2_PIX_FMT_RGB565:
     case V4L2_PIX_FMT_XBGR32:
+    case V4L2_PIX_FMT_BGR32:
       return height;
     default:
       break;
