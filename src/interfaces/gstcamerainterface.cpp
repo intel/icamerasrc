@@ -113,4 +113,7 @@ gst_camerasrc_3a_iface_init (GstCamerasrc3AInterface *iface)
   iface->set_color_transform = NULL;
   iface->set_custom_aic_param = NULL;
   iface->set_antibanding_mode = NULL;
+  iface->set_color_range_mode = NULL;
+  iface->set_exposure_time_range = NULL;
+  iface->set_sensitivity_gain_range = NULL;
 }

@@ -95,6 +95,8 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_ANTIBANDING_MODE GST_CAMERASRC_ANTIBANDING_MODE_AUTO
 /* Default value of enum type property 'exp-priority':auto */
 #define DEFAULT_PROP_EXPOSURE_PRIORITY GST_CAMERASRC_EXPOSURE_PRIORITY_AUTO
+/* Default value of enum type property 'color-range':full */
+#define DEFAULT_PROP_COLOR_RANGE_MODE GST_CAMERASRC_COLOR_RANGE_MODE_FULL
 /* Default value of enum type property 'video-stabilization':off */
 #define DEFAULT_PROP_VIDEO_STABILIZATION_MODE GST_CAMERASRC_VIDEO_STABILIZATION_MODE_OFF
 /* Default value of enum type property 'buffer-flag': read */
@@ -247,6 +249,12 @@ typedef enum
 
 typedef enum
 {
+  GST_CAMERASRC_COLOR_RANGE_MODE_FULL = 0,
+  GST_CAMERASRC_COLOR_RANGE_MODE_REDUCED = 1,
+} GstCamerasrcColorRangeMode;
+
+typedef enum
+{
   GST_CAMERASRC_BUFFER_USAGE_NONE = 0,
   GST_CAMERASRC_BUFFER_USAGE_READ = 1,
   GST_CAMERASRC_BUFFER_USAGE_WRITE = 2,
@@ -331,6 +339,8 @@ struct _Gst3AManualControl
   gchar *custom_aic_param;
 
   int antibanding_mode;
+
+  int color_range_mode;
 };
 
 using namespace icamera;

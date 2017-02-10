@@ -132,6 +132,7 @@ enum
   PROP_CUSTOM_AIC_PARAMETER,
 
   PROP_ANTIBANDING_MODE,
+  PROP_COLOR_RANGE_MODE,
   PROP_VIDEO_STABILIZATION_MODE,
   PROP_INPUT_FORMAT,
   PROP_BUFFER_USAGE,
@@ -222,6 +223,12 @@ static gboolean gst_camerasrc_set_custom_aic_param (GstCamerasrc3A *cam3a,
     const void* data, unsigned int length);
 static gboolean gst_camerasrc_set_antibanding_mode (GstCamerasrc3A *cam3a,
     camera_antibanding_mode_t bandingMode);
+static gboolean gst_camerasrc_set_color_range_mode (GstCamerasrc3A *cam3a,
+    camera_yuv_color_range_mode_t colorRangeMode);
+static gboolean gst_camerasrc_set_exposure_time_range(GstCamerasrc3A *cam3a,
+    camera_ae_exposure_time_range_t exposureTimeRange);
+static gboolean gst_camerasrc_set_sensitivity_gain_range (GstCamerasrc3A *cam3a,
+    camera_sensitivity_gain_range_t sensitivityGainRange);
 
 #if 0
 static gboolean gst_camerasrc_sink_event(GstPad * pad, GstObject * parent, GstEvent * event);
@@ -640,6 +647,26 @@ gst_camerasrc_antibanding_mode_get_type(void)
 }
 
 static GType
+gst_camerasrc_color_range_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType color_range_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_COLOR_RANGE_MODE_FULL,
+          "Full range(0-255) YUV data", "full"},
+    {GST_CAMERASRC_COLOR_RANGE_MODE_REDUCED,
+          "Reduced range aka. BT.601(16-235) YUV data", "reduced"},
+    {0, NULL, NULL},
+   };
+
+  if (!color_range_mode_type) {
+    color_range_mode_type = g_enum_register_static ("GstCamerasrcColorRangeMode", method_types);
+  }
+  return color_range_mode_type;
+}
+
+static GType
 gst_camerasrc_exposure_priority_get_type(void)
 {
   PERF_CAMERA_ATRACE();
@@ -802,7 +829,7 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
 
   g_object_class_install_property(gobject_class,PROP_EXPOSURE_TIME,
       g_param_spec_int("exposure-time","Exposure time","Exposure time(only valid in manual AE mode)",
-        30,33333,30,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+        90,33333,90,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property(gobject_class,PROP_GAIN,
       g_param_spec_float("gain","Gain","Implement total gain or maximal gain(only valid in manual AE mode).Unit: db",
@@ -900,6 +927,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum ("antibanding-mode", "Antibanding Mode", "Antibanding Mode",
           gst_camerasrc_antibanding_mode_get_type(), DEFAULT_PROP_ANTIBANDING_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_COLOR_RANGE_MODE,
+      g_param_spec_enum ("color-range", "ColorRange Mode", "ColorRange Mode",
+          gst_camerasrc_color_range_mode_get_type(), DEFAULT_PROP_COLOR_RANGE_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_VIDEO_STABILIZATION_MODE,
       g_param_spec_enum ("video-stabilization-mode", "Video stabilization mode", "Video stabilization mode",
           gst_camerasrc_video_stabilization_mode_get_type(), DEFAULT_PROP_VIDEO_STABILIZATION_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -981,6 +1012,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->man_ctl.weight_grid_mode = DEFAULT_PROP_WEIGHT_GRID_MODE;
   camerasrc->man_ctl.wp = DEFAULT_PROP_WP;
   camerasrc->man_ctl.antibanding_mode = DEFAULT_PROP_ANTIBANDING_MODE;
+  camerasrc->man_ctl.color_range_mode = DEFAULT_PROP_COLOR_RANGE_MODE;
   camerasrc->man_ctl.exposure_priority = DEFAULT_PROP_EXPOSURE_PRIORITY;
 }
 
@@ -1017,6 +1049,9 @@ gst_camerasrc_3a_interface_init (GstCamerasrc3AInterface *iface)
   iface->set_color_transform = gst_camerasrc_set_color_transform;
   iface->set_custom_aic_param = gst_camerasrc_set_custom_aic_param;
   iface->set_antibanding_mode = gst_camerasrc_set_antibanding_mode;
+  iface->set_color_range_mode = gst_camerasrc_set_color_range_mode;
+  iface->set_exposure_time_range = gst_camerasrc_set_exposure_time_range;
+  iface->set_sensitivity_gain_range = gst_camerasrc_set_sensitivity_gain_range;
 }
 
 /**
@@ -1491,6 +1526,10 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->param->setAntiBandingMode((camera_antibanding_mode_t)g_value_get_enum(value));
       src->man_ctl.antibanding_mode = g_value_get_enum (value);
       break;
+    case PROP_COLOR_RANGE_MODE:
+      src->param->setYuvColorRangeMode((camera_yuv_color_range_mode_t)g_value_get_enum(value));
+      src->man_ctl.color_range_mode = g_value_get_enum(value);
+      break;
     case PROP_VIDEO_STABILIZATION_MODE:
       src->param->setVideoStabilizationMode((camera_video_stabilization_mode_t)g_value_get_enum(value));
       src->video_stabilization_mode = g_value_get_enum (value);
@@ -1644,6 +1683,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_ANTIBANDING_MODE:
       g_value_set_enum (value, src->man_ctl.antibanding_mode);
+      break;
+    case PROP_COLOR_RANGE_MODE:
+      g_value_set_enum (value, src->man_ctl.color_range_mode);
       break;
     case PROP_VIDEO_STABILIZATION_MODE:
       g_value_set_enum (value, src->video_stabilization_mode);
@@ -2596,7 +2638,7 @@ gst_camerasrc_set_white_point (GstCamerasrc3A *cam3a,
 /* Get AWB gain shift
 * param[in]        cam3a    Camera Source handle
 * param[in, out]        awbGainShift    gain shift(r_gain, g_gain, b_gain)
-* return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+* return camera_awb_gains_t
 */
 static camera_awb_gains_t
 gst_camerasrc_get_awb_gain_shift (GstCamerasrc3A *cam3a,
@@ -2614,7 +2656,7 @@ gst_camerasrc_get_awb_gain_shift (GstCamerasrc3A *cam3a,
 /* Set AWB gain shift
 * param[in]        cam3a    Camera Source handle
 * param[in]        awbGainShift    gain shift(r_gain, g_gain, b_gain)
-* return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+* return 0 if set successfully, otherwise non-0 value is returned
 */
 static gboolean
 gst_camerasrc_set_awb_gain_shift (GstCamerasrc3A *cam3a,
@@ -2632,7 +2674,7 @@ gst_camerasrc_set_awb_gain_shift (GstCamerasrc3A *cam3a,
 /* Set AE region
 * param[in]        cam3a    Camera Source handle
 * param[in]        aeRegions    regions(left, top, right, bottom, weight)
-* return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+* return 0 if set successfully, otherwise non-0 value is returned
 */
 static gboolean
 gst_camerasrc_set_ae_region (GstCamerasrc3A *cam3a,
@@ -2649,7 +2691,7 @@ gst_camerasrc_set_ae_region (GstCamerasrc3A *cam3a,
 /* Set color transform
 * param[in]        cam3a    Camera Source handle
 * param[in]        colorTransform    float array
-* return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+* return 0 if set successfully, otherwise non-0 value is returned
 */
 static gboolean
 gst_camerasrc_set_color_transform (GstCamerasrc3A *cam3a,
@@ -2667,7 +2709,7 @@ gst_camerasrc_set_color_transform (GstCamerasrc3A *cam3a,
 * param[in]        cam3a    Camera Source handle
 * param[in]        data    the pointer of destination buffer
 * param[in]        length    but buffer size
-* return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+* return 0 if set successfully, otherwise non-0 value is returned
 */
 static gboolean
 gst_camerasrc_set_custom_aic_param (GstCamerasrc3A *cam3a,
@@ -2687,7 +2729,7 @@ gst_camerasrc_set_custom_aic_param (GstCamerasrc3A *cam3a,
 *                                     ANTIBANDING_MODE_50HZ,
 *                                     ANTIBANDING_MODE_60HZ,
 *                                     ANTIBANDING_MODE_OFF,
-* return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+* return 0 if set successfully, otherwise non-0 value is returned
 */
 static gboolean
 gst_camerasrc_set_antibanding_mode (GstCamerasrc3A *cam3a,
@@ -2697,6 +2739,57 @@ gst_camerasrc_set_antibanding_mode (GstCamerasrc3A *cam3a,
   camerasrc->param->setAntiBandingMode(bandingMode);
   camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
   g_message("Interface Called: @%s, set andtibanding mode=%d.", __func__, (int)bandingMode);
+
+  return TRUE;
+}
+
+/* Set color range mode
+* param[in]        cam3a    Camera Source handle
+* param[in]        colorRangeMode     CAMERA_FULL_MODE_YUV_COLOR_RANGE,
+*                                     CAMERA_REDUCED_MODE_YUV_COLOR_RANGE,
+* return 0 if set successfully, otherwise non-0 value is returned
+*/
+static gboolean gst_camerasrc_set_color_range_mode (GstCamerasrc3A *cam3a,
+    camera_yuv_color_range_mode_t colorRangeMode)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  camerasrc->param->setYuvColorRangeMode(colorRangeMode);
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s, set color range mode=%d.", __func__, (int)colorRangeMode);
+
+  return TRUE;
+}
+
+/* Set exposure time range
+* param[in]        cam3a        Camera Source handle
+* param[in]        exposureTimeRange        the exposure time range to be set
+* return 0 if set successfully, otherwise non-0 value is returned
+*/
+static gboolean gst_camerasrc_set_exposure_time_range(GstCamerasrc3A *cam3a,
+    camera_ae_exposure_time_range_t exposureTimeRange)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  camerasrc->param->setExposureTimeRange(exposureTimeRange);
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s, set exposure time range, min=%d max=%d.", __func__,
+      exposureTimeRange.exposure_time_min, exposureTimeRange.exposure_time_max);
+
+  return TRUE;
+}
+
+/* set sensitivity gain range
+* param[in]        cam3a        Camera Source handle
+* param[in]        sensitivityGainRange        the sensitivity gain range to be set
+* return 0 if set successfully, otherwise non-0 value is returned
+*/
+static gboolean gst_camerasrc_set_sensitivity_gain_range (GstCamerasrc3A *cam3a,
+    camera_sensitivity_gain_range_t sensitivityGainRange)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  camerasrc->param->setSensitivityGainRange(sensitivityGainRange);
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s, set sensitivity gain range, min=%d max=%d.", __func__,
+      sensitivityGainRange.min, sensitivityGainRange.max);
 
   return TRUE;
 }

@@ -300,28 +300,28 @@ struct _GstCamerasrc3AInterface {
   /* Get AWB gain shift
   * param[in]        cam3a    Camera Source handle
   * param[in, out]        awbGainShift    gain shift(r_gain, g_gain, b_gain)
-  * return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+  * return camera_awb_gains_t
   */
   camera_awb_gains_t      (*get_awb_gain_shift)      (GstCamerasrc3A *cam3a, camera_awb_gains_t& awbGainShift);
 
   /* Set AWB gain shift
   * param[in]        cam3a    Camera Source handle
   * param[in]        awbGainShift    gain shift(r_gain, g_gain, b_gain)
-  * return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+  * return 0 if set successfully, otherwise non-0 value is returned
   */
   gboolean      (*set_awb_gain_shift)       (GstCamerasrc3A *cam3a, camera_awb_gains_t awbGainShift);
 
   /* Set AE region
   * param[in]        cam3a    Camera Source handle
   * param[in]        aeRegions    regions(left, top, right, bottom, weight)
-  * return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+  * return 0 if set successfully, otherwise non-0 value is returned
   */
   gboolean      (*set_ae_region)      (GstCamerasrc3A *cam3a, camera_window_list_t aeRegions);
 
   /* Set color transform
   * param[in]        cam3a    Camera Source handle
   * param[in]        colorTransform    float array
-  * return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+  * return 0 if set successfully, otherwise non-0 value is returned
   */
   gboolean      (*set_color_transform)      (GstCamerasrc3A *cam3a, camera_color_transform_t colorTransform);
 
@@ -329,7 +329,7 @@ struct _GstCamerasrc3AInterface {
   * param[in]        cam3a    Camera Source handle
   * param[in]        data    the pointer of destination buffer
   * param[in]        length    but buffer size
-  * return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+  * return 0 if set successfully, otherwise non-0 value is returned
   */
   gboolean      (*set_custom_aic_param)      (GstCamerasrc3A *cam3a, const void* data, unsigned int length);
 
@@ -339,9 +339,31 @@ struct _GstCamerasrc3AInterface {
   *                                     ANTIBANDING_MODE_50HZ,
   *                                     ANTIBANDING_MODE_60HZ,
   *                                     ANTIBANDING_MODE_OFF,
-  * return 0 if awb gain shift was set, non-0 means no awb gain shift was set
+  * return 0 if set successfully, otherwise non-0 value is returned
   */
   gboolean      (*set_antibanding_mode)      (GstCamerasrc3A *cam3a, camera_antibanding_mode_t bandingMode);
+
+  /* Set color range mode
+  * param[in]        cam3a        Camera Source handle
+  * param[in]        colorRangeMode     CAMERA_FULL_MODE_YUV_COLOR_RANGE,
+  *                                     CAMERA_REDUCED_MODE_YUV_COLOR_RANGE,
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*set_color_range_mode)      (GstCamerasrc3A *cam3a, camera_yuv_color_range_mode_t colorRangeMode);
+
+  /* Set exposure time range
+  * param[in]        cam3a        Camera Source handle
+  * param[in]        exposureTimeRange        the exposure time range to be set
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*set_exposure_time_range)      (GstCamerasrc3A *cam3a, camera_ae_exposure_time_range_t exposureTimeRange);
+
+  /* set sensitivity gain range
+  * param[in]        cam3a        Camera Source handle
+  * param[in]        sensitivityGainRange        the sensitivity gain range to be set
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*set_sensitivity_gain_range)      (GstCamerasrc3A *cam3a, camera_sensitivity_gain_range_t sensitivityGainRange);
 };
 
 GType gst_camerasrc_3a_interface_get_type(void);
