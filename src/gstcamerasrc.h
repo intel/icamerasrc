@@ -63,6 +63,8 @@ G_BEGIN_DECLS
 #define MAX_PROP_BUFFERCOUNT 10
 #define MIN_PROP_BUFFERCOUNT 2
 #define DEFAULT_PROP_WDR_LEVEL 100
+#define DEFAULT_PROP_EXPOSURE_TIME 90
+#define DEFAULT_PROP_GAIN 0
 #define DEFAULT_PROP_PRINT_FPS false
 #define DEFAULT_PROP_PRINT_FIELD false
 
@@ -105,6 +107,7 @@ G_BEGIN_DECLS
 /* Default value of string type properties */
 #define DEFAULT_PROP_WP NULL
 #define DEFAULT_PROP_AE_REGION NULL
+#define DEFAULT_PROP_GAIN_RANGE NULL
 #define DEFAULT_PROP_CCT_RANGE NULL
 #define DEFAULT_PROP_COLOR_TRANSFORM NULL
 #define DEFAULT_PROP_CUSTOM_AIC_PARAMETER NULL
@@ -317,6 +320,7 @@ struct _Gst3AManualControl
   char ae_region[128];
   int converge_speed;
   int converge_speed_mode;
+  gchar *gain_range;
   /* Backlight Settings*/
   int blc_area_mode;
   guint wdr_level;

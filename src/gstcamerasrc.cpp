@@ -109,6 +109,7 @@ enum
   PROP_AE_MODE,
   PROP_WEIGHT_GRID_MODE,
   PROP_AE_REGION,
+  PROP_GAIN_RANGE,
   PROP_CONVERGE_SPEED,
   PROP_CONVERGE_SPEED_MODE,
   /* Backlight Settings*/
@@ -919,6 +920,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_string("ae-region","AE region","AE region",
         DEFAULT_PROP_AE_REGION, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property(gobject_class,PROP_GAIN_RANGE,
+      g_param_spec_string("gain-range","AE gain range","AE gain range",
+        DEFAULT_PROP_GAIN_RANGE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_CUSTOM_AIC_PARAMETER,
       g_param_spec_string("custom-aic-param","Custom Aic Parameter","Custom Aic Parameter",
         DEFAULT_PROP_CUSTOM_AIC_PARAMETER, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -1009,6 +1014,8 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->man_ctl.scene_mode = DEFAULT_PROP_SCENE_MODE;
   camerasrc->man_ctl.sensor_resolution = DEFAULT_PROP_SENSOR_RESOLUTION;
   camerasrc->man_ctl.ae_mode = DEFAULT_PROP_AE_MODE;
+  camerasrc->man_ctl.exposure_time = DEFAULT_PROP_EXPOSURE_TIME;
+  camerasrc->man_ctl.gain = DEFAULT_PROP_GAIN;
   camerasrc->man_ctl.weight_grid_mode = DEFAULT_PROP_WEIGHT_GRID_MODE;
   camerasrc->man_ctl.wp = DEFAULT_PROP_WP;
   camerasrc->man_ctl.antibanding_mode = DEFAULT_PROP_ANTIBANDING_MODE;
@@ -1116,6 +1123,37 @@ gst_camerasrc_get_region_vector(const char *reg_str, camera_window_list_t &regio
   return (NULL == token) ? -1 : 0;
 }
 
+template <typename T>
+static int
+gst_camerasrc_parse_range(const gchar *range_str, T &min, T &max)
+{
+  char *token = NULL;
+  int len = strlen(range_str);
+  char range_array[len + 1];
+  memset(range_array, 0, sizeof(range_array));
+
+  snprintf(range_array, sizeof(range_array), "%s", range_str);
+  token = strtok(range_array, "~");
+  if (token == NULL) {
+    g_print("failed to aquire min range.\n");
+    return -1;
+  }
+  min = atof(token);
+
+  token = strtok(NULL, "~");
+  if (token == NULL) {
+    g_print("failed to aquire max range.\n");
+    return -1;
+  }
+  max = atof(token);
+
+  if (min > max) {
+    g_print("invalid range, min value is bigger than max.\n");
+    return -1;
+  }
+
+  return 0;
+}
 
 /**
   * parse the string to two-dimensional matrix with float type, the string is similar to:
@@ -1185,7 +1223,6 @@ gst_camerasrc_parse_cct_range(Gstcamerasrc *src, gchar *cct_range_str, camera_ra
   return 0;
 }
 
-
 /**
   * parse white point property, assign x, y to camera_coordinate_t
   */
@@ -1207,74 +1244,6 @@ gst_camerasrc_parse_white_point(Gstcamerasrc *src, gchar *wp_str, camera_coordin
   return 0;
 }
 
-static int
-gst_camerasrc_check_exposuretime_range(Gstcamerasrc *src, GEnumValue *values, int exp)
-{
-  camera_info_t cam_info;
-  int ret = exp;
-
-  get_camera_info(src->device_id, cam_info);
-  vector<camera_ae_exposure_time_range_t> etRanges;
-  if (cam_info.capability->getSupportedAeExposureTimeRange(etRanges) == 0) {
-    for (auto & item : etRanges) {
-      if (src->man_ctl.scene_mode == values[item.scene_mode].value &&
-            (exp < item.exposure_time_min || exp > item.exposure_time_max)) {
-        ret = (exp < item.exposure_time_min) ? item.exposure_time_min : item.exposure_time_max;
-        g_print("Set exposure time to extreme value: %d\n", ret);
-        return ret;
-      }
-    }
-  }
-
-  return ret;
-}
-
-static float
-gst_camerasrc_check_aegain_range(Gstcamerasrc *src, GEnumValue *values, float gain)
-{
-  camera_info_t cam_info;
-  float ret = gain;
-
-  vector<camera_ae_gain_range_t> gainRange;
-  get_camera_info(src->device_id, cam_info);
-  if (cam_info.capability->getSupportedAeGainRange(gainRange) == 0) {
-    for (auto & item : gainRange) {
-      if (src->man_ctl.scene_mode == values[item.scene_mode].value &&
-            (gain < item.gain_min || gain > item.gain_max)) {
-        ret = (gain < item.gain_min) ? item.gain_min : item.gain_max;
-        g_print("Set gain to extreme value: %f\n", ret);
-        return ret;
-      }
-    }
-  }
-
-  return ret;
-}
-
-/* This function will check if exposure-time and gain properties are within range
-   * according to current scene-mode. If not, adjust its value to extreme of range
-   * and call interfaces to set scene-mode, exposure-time, gain together. */
-static void
-gst_camerasrc_config_scene_mode_params(Gstcamerasrc *src)
-{
-  GObjectClass *oclass = G_OBJECT_GET_CLASS (src);
-  GParamSpec *spec = g_object_class_find_property (oclass, "scene-mode");
-  GEnumValue *values = G_ENUM_CLASS (g_type_class_ref(spec->value_type))->values;
-
-  /* Check if exposure time and gain values are out of range */
-  int adjusted_exp = gst_camerasrc_check_exposuretime_range(src, values, src->man_ctl.exposure_time);
-  gfloat adjusted_gain = gst_camerasrc_check_aegain_range(src, values, src->man_ctl.gain);
-
-  /* Call interfaces together */
-  src->param->setSceneMode((camera_scene_mode_t)src->man_ctl.scene_mode);
-  src->param->setExposureTime((int64_t)adjusted_exp);
-  src->param->setSensitivityGain(adjusted_gain);
-
-  /* assign adjusted value to exposure-time and gain */
-  src->man_ctl.exposure_time = adjusted_exp;
-  src->man_ctl.gain = adjusted_gain;
-}
-
 static void
 gst_camerasrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -1289,6 +1258,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
   camera_window_list_t region;
   camera_color_transform_t transform;
   camera_range_t cct_range;
+  camera_sensitivity_gain_range_t gain_range;
   camera_coordinate_t white_point;
   unsigned int custom_aic_param_len = 0;
 
@@ -1395,12 +1365,12 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->man_ctl.iris_level = g_value_get_int (value);
       break;
     case PROP_EXPOSURE_TIME:
+      src->param->setExposureTime(g_value_get_int(value));
       src->man_ctl.exposure_time = g_value_get_int(value);
-      gst_camerasrc_config_scene_mode_params(src);
       break;
     case PROP_GAIN:
+      src->param->setSensitivityGain(g_value_get_float (value));
       src->man_ctl.gain = g_value_get_float (value);
-      gst_camerasrc_config_scene_mode_params(src);
       break;
     case PROP_BLC_AREA_MODE:
       src->param->setBlcAreaMode((camera_blc_area_mode_t)g_value_get_enum(value));
@@ -1433,8 +1403,8 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->man_ctl.awb_gain_b = awb_gain.b_gain;
       break;
     case PROP_SCENE_MODE:
+      src->param->setSceneMode((camera_scene_mode_t)g_value_get_enum (value));
       src->man_ctl.scene_mode = g_value_get_enum (value);
-      gst_camerasrc_config_scene_mode_params(src);
       break;
     case PROP_SENSOR_RESOLUTION:
       //implement this in the future.
@@ -1506,6 +1476,15 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
         snprintf(src->man_ctl.ae_region, sizeof(src->man_ctl.ae_region),
                  "%s", g_value_get_string(value));
       }
+      break;
+    case PROP_GAIN_RANGE:
+      g_free(src->man_ctl.gain_range);
+      src->man_ctl.gain_range = g_strdup(g_value_get_string(value));
+      ret = gst_camerasrc_parse_range(src->man_ctl.gain_range,
+              gain_range.min,
+              gain_range.max);
+      if (ret == 0)
+        src->param->setSensitivityGainRange(gain_range);
       break;
     case PROP_AWB_COLOR_TRANSFORM:
       ret = gst_camerasrc_parse_string_to_matrix(g_value_get_string (value),
@@ -1674,6 +1653,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_AE_REGION:
       g_value_set_string (value, src->man_ctl.ae_region);
+      break;
+    case PROP_GAIN_RANGE:
+      g_value_set_string (value, src->man_ctl.gain_range);
       break;
     case PROP_AWB_COLOR_TRANSFORM:
       g_value_set_string(value, src->man_ctl.color_transform);
@@ -2788,7 +2770,7 @@ static gboolean gst_camerasrc_set_sensitivity_gain_range (GstCamerasrc3A *cam3a,
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
   camerasrc->param->setSensitivityGainRange(sensitivityGainRange);
   camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
-  g_message("Interface Called: @%s, set sensitivity gain range, min=%d max=%d.", __func__,
+  g_message("Interface Called: @%s, set sensitivity gain range, min=%lf max=%lf.", __func__,
       sensitivityGainRange.min, sensitivityGainRange.max);
 
   return TRUE;
