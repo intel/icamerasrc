@@ -311,7 +311,7 @@ struct _Gst3AManualControl
   /* Exposure Settings*/
   int iris_mode;
   guint iris_level;
-  guint exposure_time;
+  int exposure_time;
   guint exposure_ev;
   int exposure_priority;
   gfloat gain;
@@ -345,6 +345,14 @@ struct _Gst3AManualControl
   int antibanding_mode;
 
   int color_range_mode;
+
+  /* Flags to monitor if property is set.
+   * We only consider monitoring 'exposure-time', 'gain',
+   * and 'scene-mode' because they have dependency
+   * to each other */
+  gboolean manual_set_exposure_time;
+  gboolean manual_set_gain;
+  gboolean manual_set_scene_mode;
 };
 
 using namespace icamera;
