@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2016 Intel Corporation
+ * Copyright (C) 2016-2017 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -75,6 +75,13 @@ using namespace std;
               else {f = "none";} \
       } while(0)
 
+/**
+* An option that can be activated on bufferpool to request dmabuf
+* handles on buffers from the pool.
+*/
+#define GST_BUFFER_POOL_OPTION_DMABUF_MEMORY \
+  "GstBufferPoolOptionDMABUFMemory"
+
 namespace CameraSrcUtils {
 
   int gst_fmt_2_fourcc(GstVideoFormat gst_fmt);
@@ -87,6 +94,7 @@ namespace CameraSrcUtils {
 
   int get_number_of_valid_lines(int format, int height);
 
+  void get_stream_info_by_caps(GstCaps *caps, const char **format, int *width, int *height);
 }
 
 #endif

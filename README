@@ -134,3 +134,7 @@ Run Gstreamer pipeline with icamerasrc
                        icamerasrc num-vc=4 device-name=aggregator-2 ! video/x-raw,format=UYVY,width=1280,height=720 ! filesink location=stream2_720p \
                        icamerasrc num-vc=4 device-name=aggregator-3 ! video/x-raw,format=UYVY,width=720,height=576 ! filesink location=stream3_576p \
                        icamerasrc num-vc=4 device-name=aggregator-4 ! video/x-raw,format=UYVY,width=640,height=480 ! filesink location=stream4_vga
+
+    To capture from multi-stream(start multiple streams with one sensor) @NV12_1080p + @NV12_1080p
+        gst-launch-1.0 icamerasrc device-name=imx185 name=t t.src ! queue ! video/x-raw,format=NV12,width=1920,height=1080 ! vaapipostproc ! vaapisink \
+                                                     t.video ! queue ! video/x-raw,format=NV12,width=1920,height=1080 ! vaapipostproc ! vaapisink

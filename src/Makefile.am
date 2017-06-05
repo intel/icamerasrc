@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2016 Intel Corporation
+#  Copyright (C) 2015-2017 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -64,6 +64,8 @@ libgsticamerasrc_la_SOURCES = gstcamerasrc.cpp \
                               gstcameraformat.cpp \
                               gstcamerasrcbufferpool.cpp \
                               gstcameradeinterlace.cpp \
+                              gstcambasesrc.cpp \
+                              gstcampushsrc.cpp \
                               utils.cpp
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
@@ -95,4 +97,6 @@ noinst_HEADERS = gstcamerasrc.h \
                  gstcameraformat.h \
                  gstcamerasrcbufferpool.h \
                  gstcameradeinterlace.h \
+                 gstcambasesrc.h \
+                 gstcampushsrc.h \
                  utils.h

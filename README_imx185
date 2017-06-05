@@ -58,7 +58,7 @@ iris-mode              Enum               N/A            0:auto               0:
                                                          1:manual
                                                          2:customizd
 
-exposure-time          Int                90~33333       N/A                  90                     Range differs according to sensor and value of scene-mode
+exposure-time          Int                30~33333       N/A                  30                     Range differs according to sensor and value of scene-mode
                                                                                                      [sensor]/[scene-mode]/[supported range]
                                                                                                      ov13860/auto/90~33333
                                                                                                      ov13860/hdr/2400~33328

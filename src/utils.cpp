@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2016 Intel Corporation
+ * Copyright (C) 2016-2017 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -135,4 +135,12 @@ int CameraSrcUtils:: get_number_of_valid_lines(int format, int height)
   }
 
   return 0;
+}
+
+void CameraSrcUtils:: get_stream_info_by_caps(GstCaps *caps, const char **format, int *width, int *height)
+{
+  const GstStructure *structure = gst_caps_get_structure(caps, 0);
+  *format = gst_structure_get_string(structure, "format");
+  gst_structure_get_int(structure, "width", width);
+  gst_structure_get_int(structure, "height", height);
 }
