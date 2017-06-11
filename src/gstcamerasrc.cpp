@@ -63,7 +63,8 @@
 #include "gstcamerasrcbufferpool.h"
 #include "gstcamerasrc.h"
 #include "gstcameraformat.h"
-#include "gstcamerainterface.h"
+#include "gstcamera3ainterface.h"
+#include "gstcameraispinterface.h"
 #include "utils.h"
 
 using namespace icamera;
@@ -144,10 +145,11 @@ enum
 #define gst_camerasrc_parent_class parent_class
 
 static void gst_camerasrc_3a_interface_init (GstCamerasrc3AInterface *iface);
+static void gst_camerasrc_isp_interface_init (GstCamerasrcIspInterface *ispIface);
 
 G_DEFINE_TYPE_WITH_CODE (Gstcamerasrc, gst_camerasrc, GST_TYPE_CAM_PUSH_SRC,
-                          G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_3A_IF,
-                              gst_camerasrc_3a_interface_init));
+        G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_3A_IF, gst_camerasrc_3a_interface_init);
+        G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_ISP_IF, gst_camerasrc_isp_interface_init));
 
 static void gst_camerasrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -236,6 +238,10 @@ static gboolean gst_camerasrc_set_exposure_time_range(GstCamerasrc3A *cam3a,
     camera_ae_exposure_time_range_t exposureTimeRange);
 static gboolean gst_camerasrc_set_sensitivity_gain_range (GstCamerasrc3A *cam3a,
     camera_sensitivity_gain_range_t sensitivityGainRange);
+
+static gboolean gst_camerasrc_set_isp_control (GstCamerasrcIsp *camIsp, unsigned int tag, void *data);
+static gboolean gst_camerasrc_get_isp_control (GstCamerasrcIsp *camIsp, unsigned int tag, void *data);
+static gboolean gst_camerasrc_apply_isp_control (GstCamerasrcIsp *camIsp);
 
 #if 0
 static gboolean gst_camerasrc_sink_event(GstPad * pad, GstObject * parent, GstEvent * event);
@@ -1092,6 +1098,14 @@ gst_camerasrc_3a_interface_init (GstCamerasrc3AInterface *iface)
   iface->set_color_range_mode = gst_camerasrc_set_color_range_mode;
   iface->set_exposure_time_range = gst_camerasrc_set_exposure_time_range;
   iface->set_sensitivity_gain_range = gst_camerasrc_set_sensitivity_gain_range;
+}
+
+static void
+gst_camerasrc_isp_interface_init (GstCamerasrcIspInterface *ispIface)
+{
+  ispIface->set_isp_control = gst_camerasrc_set_isp_control;
+  ispIface->get_isp_control = gst_camerasrc_get_isp_control;
+  ispIface->apply_isp_control = gst_camerasrc_apply_isp_control;
 }
 
 /**
@@ -3062,6 +3076,49 @@ static gboolean gst_camerasrc_set_sensitivity_gain_range (GstCamerasrc3A *cam3a,
   camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
   g_message("Interface Called: @%s, set sensitivity gain range, min=%lf max=%lf.", __func__,
       sensitivityGainRange.min, sensitivityGainRange.max);
+
+  return TRUE;
+}
+
+
+/* Set the isp control and cache the data to param
+ *
+* param[in]        camIsp        Camera Source handle
+* param[in]        tag           The control tag
+* param[in]        data          The control data
+* return 0 if set successfully, otherwise non-0 value is returned
+*/
+static gboolean gst_camerasrc_set_isp_control (GstCamerasrcIsp *camIsp, unsigned int tag, void *data)
+{
+  g_message("Enter %s", __func__);
+
+  return TRUE;
+}
+
+/* Get the isp data
+ *
+* param[in]        camIsp        Camera Source handle
+* param[in]        tag           The control tag
+* param[out]       tag           The data pointer to get
+* return 0 if set successfully, otherwise non-0 value is returned
+*/
+static gboolean gst_camerasrc_get_isp_control (GstCamerasrcIsp *camIsp, unsigned int tag, void * data)
+{
+  g_message("Enter %s", __func__);
+
+  return TRUE;
+}
+
+/* Apply the data cached in param to isp
+ *
+ * param[in]        camIsp        Camera Source handle
+ * return TRUE if set successfully, otherwise non-0 value is returned
+ */
+static gboolean gst_camerasrc_apply_isp_control (GstCamerasrcIsp *camIsp)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(camIsp);
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s", __func__);
 
   return TRUE;
 }
