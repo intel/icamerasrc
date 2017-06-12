@@ -1831,7 +1831,9 @@ gst_camerasrc_change_state (GstElement * element, GstStateChange transition)
 {
   PERF_CAMERA_ATRACE();
   Gstcamerasrc *camerasrc = GST_CAMERASRC(element);
-  GST_INFO("CameraId=%d.", camerasrc->device_id);
+  GST_INFO("CameraId=%d, changing state: %s -> %s.", camerasrc->device_id,
+      gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
+      gst_element_state_get_name (GST_STATE_TRANSITION_NEXT (transition)));
 
   return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 }
@@ -1861,7 +1863,8 @@ gst_camerasrc_query(GstBaseSrc * bsrc, GstQuery * query )
 {
   PERF_CAMERA_ATRACE();
   Gstcamerasrc *camerasrc = GST_CAMERASRC(bsrc);
-  GST_INFO("CameraId=%d.", camerasrc->device_id);
+  GST_INFO("CameraId=%d, handling %s query.", camerasrc->device_id,
+      gst_query_type_get_name (GST_QUERY_TYPE (query)));
 
   gboolean res = GST_BASE_SRC_CLASS (parent_class)->query (bsrc, query);
 
