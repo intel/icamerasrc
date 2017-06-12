@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2017 Intel Corporation
+#  Copyright (C) 2015-2016 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -43,8 +43,6 @@
 
 # Note: plugindir is set in configure
 
-SUBDIRS = interfaces
-
 ##############################################################################
 # TODO: change libgstcamerasrc.la to something else, e.g. libmysomething.la     #
 ##############################################################################
@@ -61,12 +59,13 @@ plugin_LTLIBRARIES = libgsticamerasrc.la
 
 # sources used to compile this plug-in
 libgsticamerasrc_la_SOURCES = gstcamerasrc.cpp \
+                              gstcamerasrc.h \
                               gstcameraformat.cpp \
+                              gstcameraformat.h \
                               gstcamerasrcbufferpool.cpp \
+                              gstcamerasrcbufferpool.h \
                               gstcameradeinterlace.cpp \
-                              gstcambasesrc.cpp \
-                              gstcampushsrc.cpp \
-                              utils.cpp
+                              gstcameradeinterlace.h
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
 libgsticamerasrc_la_CPPFLAGS = \
@@ -74,7 +73,6 @@ libgsticamerasrc_la_CPPFLAGS = \
     -std=c++11 \
     -Werror \
     $(LIBUTILS_CFLAGS) \
-    -I$(top_srcdir)/src/interfaces \
     -DDEFAULT_PROP_DEVICE_ID=$(DEFAULT_PROP_DEVICE_ID)
 
 # for hardening-check
@@ -83,7 +81,6 @@ libgsticamerasrc_la_CPPFLAGS+= -fstack-protector -fPIE -fPIC -D_FORTIFY_SOURCE=2
 libgsticamerasrc_la_LIBADD = $(GST_LIBS) \
     -lgstallocators-$(GST_API_VERSION) \
     -lgstvideo-$(GST_API_VERSION) \
-    -L./interfaces/.libs/ -lgsticamerainterface \
     $(HAL_LIB)
 
 libgsticamerasrc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
@@ -93,10 +90,4 @@ libgsticamerasrc_la_LDFLAGS += -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat
 libgsticamerasrc_la_LIBTOOLFLAGS = --tag=disable-static
 
 # headers we need but don't want installed
-noinst_HEADERS = gstcamerasrc.h \
-                 gstcameraformat.h \
-                 gstcamerasrcbufferpool.h \
-                 gstcameradeinterlace.h \
-                 gstcambasesrc.h \
-                 gstcampushsrc.h \
-                 utils.h
+noinst_HEADERS = gstcamerasrc.h

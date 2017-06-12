@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2017 Intel Corporation
+ * Copyright (C) 2015-2016 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -59,7 +59,6 @@
 #include "gstcamerasrc.h"
 #include "gstcameraformat.h"
 #include "Parameters.h"
-#include "utils.h"
 
 using namespace icamera;
 using std::vector;
@@ -126,11 +125,6 @@ create_structure (guint32 fourcc)
            "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_RGBx), (void *)NULL);
     }
     break;
-    case V4L2_PIX_FMT_BGR32:{
-      structure = gst_structure_new ("video/x-raw",
-           "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_BGRA), (void *)NULL);
-    }
-    break;
     case V4L2_PIX_FMT_BGR24:{
       structure = gst_structure_new ("video/x-raw",
            "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_BGR), (void *)NULL);
@@ -177,14 +171,14 @@ set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps 
         gst_structure_set (structure,
               "width", G_TYPE_INT, res_range.range.max_w,
               "height", G_TYPE_INT, res_range.range.max_h,
-              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1,
+              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 120, 1,
               "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
               NULL);
       else
         gst_structure_set (structure,
               "width", GST_TYPE_INT_RANGE, res_range.range.min_w, res_range.range.max_w,
               "height", GST_TYPE_INT_RANGE, res_range.range.min_h, res_range.range.max_h,
-              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1,
+              "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, 120, 1,
               "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
               NULL);
 
