@@ -87,6 +87,8 @@ gain                   Float              0.0~60.0       N/A                  0.
                                                                                                      imx185/hlc/0.0~60.0
                                                                                                      imx185/video-ll/0.0~60.0
 
+wdr-level              Int                0~200          N/A                  0
+
 ae-mode                Enum               N/A            0:auto               0:auto
                                                          1:manual
 
@@ -126,8 +128,6 @@ awb-mode               Enum               N/A            0:auto               0:
                                                          10:manual_gain
                                                          11:color_transform
 
-awb-region             String             N/A            N/A                  null
-
 cct-range              String             N/A            N/A                  null
 
 wp-point               String             N/A            N/A                  null
@@ -146,12 +146,6 @@ awb-shift-g            Int                0~255          N/A                  0
 
 color-transform        String             N/A            N/A                  null
 
-overall                Int                0~100          N/A                  0
-
-spatial                Int                0~100          N/A                  0
-
-temporal               Int                0~100          N/A                  0
-
 scene-mode             Enum               N/A            0:auto               0:auto
                                                          1:hdr
                                                          2:ull
@@ -166,6 +160,8 @@ scene-mode             Enum               N/A            0:auto               0:
 sensor-resolution      Enum               N/A            0:1080p              0:1080p
                                                          1:720p
                                                          2:4K
+
+iris-level             Int                0~100          N/A                  0
 
 custom-aic-param       String             N/A            N/A                  null
 

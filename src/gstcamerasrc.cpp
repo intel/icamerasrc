@@ -63,6 +63,7 @@
 #include "gstcamerasrcbufferpool.h"
 #include "gstcamerasrc.h"
 #include "gstcameraformat.h"
+#include "utils.h"
 
 using namespace icamera;
 using std::vector;
@@ -84,6 +85,7 @@ enum
   PROP_CAPTURE_MODE,
   PROP_BUFFERCOUNT,
   PROP_PRINT_FPS,
+  PROP_PRINT_FIELD,
   PROP_INTERLACE_MODE,
   PROP_DEINTERLACE_METHOD,
   PROP_DEVICE_ID,
@@ -113,7 +115,6 @@ enum
   PROP_WDR_LEVEL,
   /* White Balance*/
   PROP_AWB_MODE,
-  PROP_AWB_REGION,
   PROP_CCT_RANGE,
   PROP_WP,
   PROP_AWB_GAIN_R,
@@ -123,10 +124,6 @@ enum
   PROP_AWB_SHIFT_G,
   PROP_AWB_SHIFT_B,
   PROP_AWB_COLOR_TRANSFORM,
-  /* Noise Reduction*/
-  PROP_OVERALL,
-  PROP_SPATIAL,
-  PROP_TEMPORAL,
   /* Video Adjustment*/
   PROP_SCENE_MODE,
   PROP_SENSOR_RESOLUTION,
@@ -135,6 +132,8 @@ enum
 
   PROP_ANTIBANDING_MODE,
   PROP_VIDEO_STABILIZATION_MODE,
+  PROP_INPUT_FORMAT,
+  PROP_BUFFER_USAGE,
 };
 
 #define gst_camerasrc_parent_class parent_class
@@ -218,8 +217,6 @@ gst_camerasrc_deinterlace_method_get_type(void)
         "don't do deinterlace", "none"},
     {GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB,
         "software bob", "sw_bob"},
-    {GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB,
-        "hardware bob", "hw_bob"},
     {GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE,
         "software weaving", "sw_weaving"},
     {GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_WEAVE,
@@ -600,6 +597,30 @@ gst_camerasrc_exposure_priority_get_type(void)
   return exp_priority_type;
 }
 
+static GType
+gst_camerasrc_buffer_usage_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType buffer_usage_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_BUFFER_USAGE_NONE,
+          "0",  "none"},
+    {GST_CAMERASRC_BUFFER_USAGE_READ,
+          "Read", "read"},
+    {GST_CAMERASRC_BUFFER_USAGE_WRITE,
+          "Write", "write"},
+    {GST_CAMERASRC_BUFFER_USAGE_DMA_EXPORT,
+          "DMA Export", "dma_export"},
+    {0, NULL, NULL},
+   };
+
+  if (!buffer_usage_type) {
+    buffer_usage_type = g_enum_register_static ("GstCamerasrcBufferUsage", method_types);
+  }
+  return buffer_usage_type;
+}
+
 static void
 gst_camerasrc_dispose(GObject *object)
 {
@@ -655,6 +676,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
   g_object_class_install_property(gobject_class,PROP_PRINT_FPS,
       g_param_spec_boolean("printfps","printfps","Whether print the FPS when do the streaming",
         DEFAULT_PROP_PRINT_FPS,(GParamFlags)(G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+
+  g_object_class_install_property(gobject_class,PROP_PRINT_FIELD,
+      g_param_spec_boolean("printfield","printfield","Whether print the interlaced buffer field",
+        DEFAULT_PROP_PRINT_FIELD,(GParamFlags)(G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
 
   g_object_class_install_property (gobject_class, PROP_INTERLACE_MODE,
       g_param_spec_enum ("interlace-mode", "interlace-mode", "The interlace method",
@@ -801,10 +826,6 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_string("ae-region","AE region","AE region",
         DEFAULT_PROP_AE_REGION, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
-  g_object_class_install_property(gobject_class,PROP_AWB_REGION,
-      g_param_spec_string("awb-region","AWB region","AWB region",
-        DEFAULT_PROP_AWB_REGION, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
   g_object_class_install_property (gobject_class, PROP_CUSTOM_AIC_PARAMETER,
       g_param_spec_string("custom-aic-param","Custom Aic Parameter","Custom Aic Parameter",
         DEFAULT_PROP_CUSTOM_AIC_PARAMETER, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -813,21 +834,17 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum ("antibanding-mode", "Antibanding Mode", "Antibanding Mode",
           gst_camerasrc_antibanding_mode_get_type(), DEFAULT_PROP_ANTIBANDING_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
-  g_object_class_install_property(gobject_class,PROP_OVERALL,
-      g_param_spec_int("overall","Overall","NR level: Overall",
-        0,100,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
-  g_object_class_install_property(gobject_class,PROP_SPATIAL,
-      g_param_spec_int("spatial","Spatial","NR level: Spatial",
-        0,100,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
-  g_object_class_install_property(gobject_class,PROP_TEMPORAL,
-      g_param_spec_int("temporal","Temporal","NR level: Temporal",
-        0,100,0,(GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
   g_object_class_install_property (gobject_class, PROP_VIDEO_STABILIZATION_MODE,
       g_param_spec_enum ("video-stabilization-mode", "Video stabilization mode", "Video stabilization mode",
           gst_camerasrc_video_stabilization_mode_get_type(), DEFAULT_PROP_VIDEO_STABILIZATION_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_INPUT_FORMAT,
+      g_param_spec_string("input-format","Input format","The format used for input system",
+        DEFAULT_PROP_INPUT_FORMAT, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_BUFFER_USAGE,
+      g_param_spec_enum ("buffer-usage", "Buffer flags", "Used to specify buffer properties",
+          gst_camerasrc_buffer_usage_get_type(), DEFAULT_PROP_BUFFER_USAGE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   gst_element_class_set_static_metadata(gstelement_class,
       "icamerasrc",
@@ -877,12 +894,13 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->num_vc = 0;
   camerasrc->debugLevel = 0;
   camerasrc->video_stabilization_mode = DEFAULT_PROP_VIDEO_STABILIZATION_MODE;
+  camerasrc->input_fmt = DEFAULT_PROP_INPUT_FORMAT;
+  camerasrc->buffer_usage= DEFAULT_PROP_BUFFER_USAGE;
 
   /* set default value for 3A manual control*/
   camerasrc->param = new Parameters;
   memset(&(camerasrc->man_ctl), 0, sizeof(camerasrc->man_ctl));
   memset(camerasrc->man_ctl.ae_region, 0, sizeof(camerasrc->man_ctl.ae_region));
-  memset(camerasrc->man_ctl.awb_region, 0, sizeof(camerasrc->man_ctl.awb_region));
   memset(camerasrc->man_ctl.color_transform, 0, sizeof(camerasrc->man_ctl.color_transform));
   camerasrc->man_ctl.iris_mode = DEFAULT_PROP_IRIS_MODE;
   camerasrc->man_ctl.wdr_level = DEFAULT_PROP_WDR_LEVEL;
@@ -1151,6 +1169,10 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       manual_setting = false;
       src->print_fps = g_value_get_boolean(value);
       break;
+    case PROP_PRINT_FIELD:
+      manual_setting = false;
+      src->print_field = g_value_get_boolean(value);
+      break;
     case PROP_INTERLACE_MODE:
       manual_setting = false;
       src->interlace_field = g_value_get_enum (value);
@@ -1160,7 +1182,6 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       switch (g_value_get_enum(value)) {
         case GST_CAMERASRC_DEINTERLACE_METHOD_NONE:
         case GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_BOB:
-        case GST_CAMERASRC_DEINTERLACE_METHOD_HARDWARE_BOB:
         case GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE:
           src->param->setDeinterlaceMode(DEINTERLACE_OFF);
           break;
@@ -1347,13 +1368,6 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
                  "%s", g_value_get_string(value));
       }
       break;
-    case PROP_AWB_REGION:
-      if (gst_camerasrc_get_region_vector(g_value_get_string (value), region) == 0) {
-        src->param->setAwbRegions(region);
-        snprintf(src->man_ctl.awb_region, sizeof(src->man_ctl.awb_region),
-                "%s", g_value_get_string(value));
-      }
-      break;
     case PROP_AWB_COLOR_TRANSFORM:
       ret = gst_camerasrc_parse_string_to_matrix(g_value_get_string (value),
                                     (float**)(transform.color_transform), 3, 3);
@@ -1373,18 +1387,15 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->param->setAntiBandingMode((camera_antibanding_mode_t)g_value_get_enum(value));
       src->man_ctl.antibanding_mode = g_value_get_enum (value);
       break;
-    case PROP_OVERALL:
-      src->man_ctl.overall = g_value_get_int (value);
-      break;
-    case PROP_SPATIAL:
-      src->man_ctl.spatial = g_value_get_int (value);
-      break;
-    case PROP_TEMPORAL:
-      src->man_ctl.temporal = g_value_get_int (value);
-      break;
     case PROP_VIDEO_STABILIZATION_MODE:
       src->param->setVideoStabilizationMode((camera_video_stabilization_mode_t)g_value_get_enum(value));
       src->video_stabilization_mode = g_value_get_enum (value);
+      break;
+    case PROP_INPUT_FORMAT:
+      src->input_fmt = g_strdup(g_value_get_string (value));
+      break;
+    case PROP_BUFFER_USAGE:
+      src->buffer_usage = g_value_get_enum(value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1412,6 +1423,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_PRINT_FPS:
       g_value_set_boolean(value,src->print_fps);
+      break;
+    case PROP_PRINT_FIELD:
+      g_value_set_boolean(value,src->print_field);
       break;
     case PROP_INTERLACE_MODE:
       g_value_set_enum (value, src->interlace_field);
@@ -1518,9 +1532,6 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
     case PROP_AE_REGION:
       g_value_set_string (value, src->man_ctl.ae_region);
       break;
-    case PROP_AWB_REGION:
-      g_value_set_string (value, src->man_ctl.awb_region);
-      break;
     case PROP_AWB_COLOR_TRANSFORM:
       g_value_set_string(value, src->man_ctl.color_transform);
       break;
@@ -1530,17 +1541,14 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
     case PROP_ANTIBANDING_MODE:
       g_value_set_enum (value, src->man_ctl.antibanding_mode);
       break;
-    case PROP_OVERALL:
-      g_value_set_int (value, src->man_ctl.overall);
-      break;
-    case PROP_SPATIAL:
-      g_value_set_int (value, src->man_ctl.spatial);
-      break;
-    case PROP_TEMPORAL:
-      g_value_set_int (value, src->man_ctl.temporal);
-      break;
     case PROP_VIDEO_STABILIZATION_MODE:
       g_value_set_enum (value, src->video_stabilization_mode);
+      break;
+    case PROP_INPUT_FORMAT:
+      g_value_set_string (value, src->input_fmt);
+      break;
+    case PROP_BUFFER_USAGE:
+      g_value_set_enum(value, src->buffer_usage);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1590,37 +1598,12 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
 
   /* parse format from caps */
   if (g_str_equal (mimetype, "video/x-raw")) {
-    switch (gst_fmt) {
-      case GST_VIDEO_FORMAT_NV12:
-        fourcc = V4L2_PIX_FMT_NV12;
-        break;
-      case GST_VIDEO_FORMAT_YUY2:
-        fourcc = V4L2_PIX_FMT_YUYV;
-        break;
-      case GST_VIDEO_FORMAT_UYVY:
-        fourcc = V4L2_PIX_FMT_UYVY;
-        break;
-      case GST_VIDEO_FORMAT_RGBx:
-        fourcc = V4L2_PIX_FMT_XRGB32;
-        break;
-      case GST_VIDEO_FORMAT_BGR:
-        fourcc = V4L2_PIX_FMT_BGR24;
-        break;
-      case GST_VIDEO_FORMAT_RGB16:
-        fourcc = V4L2_PIX_FMT_RGB565;
-        break;
-      case GST_VIDEO_FORMAT_NV16:
-        fourcc = V4L2_PIX_FMT_NV16;
-        break;
-      case GST_VIDEO_FORMAT_BGRx:
-        fourcc = V4L2_PIX_FMT_XBGR32;
-        break;
-      default:
-        break;
-    }
-  } else if (g_str_equal (mimetype, "video/x-bayer")) {
+    fourcc = CameraSrcUtils::gst_fmt_2_fourcc(gst_fmt);
+    if (fourcc < 0)
+      return FALSE;
+  } else if (g_str_equal (mimetype, "video/x-bayer"))
     fourcc = V4L2_PIX_FMT_SGRBG8;
-  } else {
+  else {
     GST_ERROR("CameraId=%d unsupported type %s", camerasrc->device_id, mimetype);
     return FALSE;
   }
@@ -1647,10 +1630,12 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, stream_con
   /* if 'framerate' label is configured in Capsfilter, call HAL interface, otherwise is 0 */
   int fps_numerator = GST_VIDEO_INFO_FPS_N(&info);
   int fps_denominator = GST_VIDEO_INFO_FPS_D(&info);
-  if (fps_numerator) {
+  if (fps_numerator)
     camerasrc->param->setFrameRate(fps_numerator/fps_denominator);
-    camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
-  }
+  else
+    camerasrc->param->setFrameRate(DEFAULT_FPS_N/DEFAULT_FPS_D);
+
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
 
   stream_list->num_streams = 1;
   stream_list->streams = camerasrc->streams;
@@ -1728,6 +1713,7 @@ gst_camerasrc_set_caps(GstBaseSrc *src, GstCaps *caps)
   PERF_CAMERA_ATRACE();
   Gstcamerasrc *camerasrc = GST_CAMERASRC (src);
   GST_INFO("CameraId=%d.", camerasrc->device_id);
+  int fourcc = -1;
 
   /* Get caps info from structure and match from HAL */
   if (!gst_camerasrc_get_caps_info (camerasrc, caps, &camerasrc->stream_list))
@@ -1744,7 +1730,22 @@ gst_camerasrc_set_caps(GstBaseSrc *src, GstCaps *caps)
   }
 
   gst_camerasrc_get_configuration_mode(camerasrc, &camerasrc->stream_list);
-  int ret = camera_device_config_streams(camerasrc->device_id,  &camerasrc->stream_list);
+
+  /* Check if input format is valid and convert to fourcc */
+  if (camerasrc->input_fmt) {
+    if (!CameraSrcUtils::check_format_by_name(camerasrc->input_fmt)) {
+        GST_ERROR("failed to find match in supported format list.");
+        return FALSE;
+    }
+    fourcc = CameraSrcUtils::string_2_fourcc(camerasrc->input_fmt);
+  }
+
+  GST_INFO("CameraId=%d input format: %s(fourcc=%d).",
+                   camerasrc->device_id,
+                   (camerasrc->input_fmt) ? (camerasrc->input_fmt) : "NULL",
+                   fourcc);
+
+  int ret = camera_device_config_streams(camerasrc->device_id,  &camerasrc->stream_list, fourcc);
   if(ret < 0) {
     GST_ERROR("CameraId=%d failed to config stream for format %s %dx%d.",
                      camerasrc->device_id, camerasrc->fmt_name,

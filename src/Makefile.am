@@ -65,7 +65,8 @@ libgsticamerasrc_la_SOURCES = gstcamerasrc.cpp \
                               gstcamerasrcbufferpool.cpp \
                               gstcamerasrcbufferpool.h \
                               gstcameradeinterlace.cpp \
-                              gstcameradeinterlace.h
+                              gstcameradeinterlace.h \
+                              utils.cpp
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
 libgsticamerasrc_la_CPPFLAGS = \

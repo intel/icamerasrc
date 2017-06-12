@@ -65,19 +65,9 @@
 #include "gstcamerasrc.h"
 #include <iostream>
 #include <time.h>
-#include <sys/syscall.h>
+#include "utils.h"
 
 using namespace icamera;
-
-#define gettid() syscall(SYS_gettid)
-
-#define PRINT_FIELD(a, f) \
-                     do { \
-                            if (a == 2)  {f = "top";} \
-                            else if (a == 3) {f = "bottom";} \
-                            else if (a == 7) {f = "alternate";} \
-                            else {f = "none";} \
-                     } while(0)
 
 GType
 gst_camerasrc_meta_api_get_type (void)
@@ -130,7 +120,8 @@ static void
 gst_camerasrc_buffer_pool_finalize (GObject * object)
 {
   PERF_CAMERA_ATRACE();
-  GST_INFO("@%s\n",__func__);
+  GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL (object);
+  GST_INFO("CameraId=%d.", pool->src->device_id);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -318,6 +309,7 @@ gst_camerasrc_alloc_userptr(GstCamerasrcBufferPool *pool,
 
   (*meta)->buffer->s = src->streams[0];
   (*meta)->buffer->s.memType = V4L2_MEMORY_USERPTR;
+  (*meta)->buffer->flags = 0;
   ret = posix_memalign(&(*meta)->buffer->addr, getpagesize(), pool->size);
 
   if (ret < 0) {
@@ -493,50 +485,18 @@ gst_camerasrc_alloc_dma_import(GstCamerasrcBufferPool *pool,
   }
 }
 
-static GstVideoFormat
-gst_camerasrc_get_video_format(int format)
-{
-  GstVideoFormat videoFmt = GST_VIDEO_FORMAT_UNKNOWN;
-  switch (format) {
-    case V4L2_PIX_FMT_NV12:
-      videoFmt = GST_VIDEO_FORMAT_NV12;
-      break;
-    case V4L2_PIX_FMT_YUYV:
-      videoFmt = GST_VIDEO_FORMAT_YUY2;
-      break;
-    case V4L2_PIX_FMT_UYVY:
-      videoFmt = GST_VIDEO_FORMAT_UYVY;
-      break;
-    case V4L2_PIX_FMT_XRGB32:
-      videoFmt = GST_VIDEO_FORMAT_RGBx;
-      break;
-    case V4L2_PIX_FMT_BGR24:
-      videoFmt = GST_VIDEO_FORMAT_BGR;
-      break;
-    case V4L2_PIX_FMT_RGB565:
-      videoFmt = GST_VIDEO_FORMAT_RGB16;
-      break;
-    case V4L2_PIX_FMT_NV16:
-      videoFmt = GST_VIDEO_FORMAT_NV16;
-      break;
-    case V4L2_PIX_FMT_XBGR32:
-      videoFmt = GST_VIDEO_FORMAT_BGRx;
-      break;
-    default:
-      g_print("not support this format: %d\n", format);
-      break;
-  }
-
-  return videoFmt;
-}
-
 static void
 gst_camerasrc_set_meta(Gstcamerasrc *camerasrc, GstBuffer *alloc_buffer)
 {
   gsize offset[GST_VIDEO_MAX_PLANES];
   gint n_planes, i, offs, stride[GST_VIDEO_MAX_PLANES];
   GstVideoFrameFlags videoFlags = GST_VIDEO_FRAME_FLAG_NONE;
-  GstVideoFormat videoFmt = gst_camerasrc_get_video_format(camerasrc->streams[0].format);
+  GstVideoFormat videoFmt = CameraSrcUtils::fourcc_2_gst_fmt(camerasrc->streams[0].format);
+  if (videoFmt == GST_VIDEO_FORMAT_UNKNOWN) {
+    GST_ERROR("CameraId=%d Unknown format.", camerasrc->device_id);
+    return;
+  }
+
   memset(offset,0,sizeof(offset));
   memset(stride,0,sizeof(stride));
 
@@ -684,6 +644,10 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
   GstClockTime timestamp = meta->buffer->timestamp;
   camerasrc->time_end = meta->buffer->timestamp;
 
+  if (camerasrc->print_field)
+    g_print("buffer field: %d    Camera Id: %d    buffer sequence: %d\n",
+      meta->buffer->s.field, camerasrc->device_id, meta->buffer->sequence);
+
   PRINT_FIELD(meta->buffer->s.field, buffer_field);
   GST_INFO("CameraId=%d DQ buffer done, GstBuffer=%p, UserBuffer=%p, buffer index=%d, Thread ID=%ld  ts=%lu, buffer field=%s.",
     camerasrc->device_id, gbuffer, meta->buffer, meta->buffer->index, gettid(), meta->buffer->timestamp, buffer_field);
@@ -707,7 +671,6 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
         if (camerasrc->first_frame) {
           gst_camerasrc_copy_field(camerasrc, meta->buffer, camerasrc->top);
         }
-
         break;
     default:
         GST_BUFFER_FLAG_UNSET (gbuffer, GST_VIDEO_BUFFER_FLAG_TFF);
@@ -734,6 +697,21 @@ gst_camerasrc_buffer_pool_acquire_buffer (GstBufferPool * bpool, GstBuffer ** bu
   return GST_FLOW_OK;
 }
 
+int gst_camerasrc_get_buffer_usage_shifting(int flag)
+{
+  switch (flag) {
+    case GST_CAMERASRC_BUFFER_USAGE_NONE:
+      return 0;
+    case GST_CAMERASRC_BUFFER_USAGE_READ:
+      return BUFFER_FLAG_SW_READ;
+    case GST_CAMERASRC_BUFFER_USAGE_WRITE:
+      return BUFFER_FLAG_SW_WRITE;
+    case GST_CAMERASRC_BUFFER_USAGE_DMA_EXPORT:
+      return BUFFER_FLAG_DMA_EXPORT;
+  }
+  return 0;
+}
+
 /**
  * Queue a buffer from a stream
  */
@@ -746,13 +724,17 @@ gst_camerasrc_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buf
   GstCamerasrcMeta *meta = GST_CAMERASRC_META_GET(buffer);
   GST_INFO("CameraId=%d", camerasrc->device_id);
 
+  meta->buffer->flags |= gst_camerasrc_get_buffer_usage_shifting(camerasrc->buffer_usage);
+
   int ret = camera_stream_qbuf(camerasrc->device_id, camerasrc->stream_id, meta->buffer);
   if (ret < 0) {
     GST_ERROR("CameraId=%d failed to qbuf back to stream.", camerasrc->device_id);
     return;
   }
-  GST_INFO("CameraId=%d Q buffer done, GstBuffer=%p, UserBuffer=%p, Buffer index=%d, Thread ID=%ld,  ts=%lu",
-    camerasrc->device_id, buffer, meta->buffer, meta->buffer->index, gettid(), meta->buffer->timestamp);
+  GST_INFO("CameraId=%d Q buffer done, GstBuffer=%p, UserBuffer=%p, \
+    Buffer index=%d, Buffer flag=%d, Thread ID=%ld,  ts=%lu",
+    camerasrc->device_id, buffer, meta->buffer,
+    meta->buffer->index, meta->buffer->flags, gettid(), meta->buffer->timestamp);
 
   GST_DEBUG("CameraId=%d release_buffer buffer %p.", camerasrc->device_id, buffer);
   {
