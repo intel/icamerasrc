@@ -89,7 +89,7 @@ AC_ARG_WITH([cameralib],
 
 AC_SUBST([HAL_LIB], [-$with_cameralib])
 
-AC_ARG_WITH([androidstubs]
+AC_ARG_WITH([androidstubs],
   [AS_HELP_STRING([--with-androidstubs], [add android stubs for linking] @@)],
   [],
   [with_androidstubs=no])
@@ -187,6 +187,9 @@ dnl set proper LDFLAGS for plugins
 GST_PLUGIN_LDFLAGS='-module -avoid-version -export-symbols-regex [_]*\(gst_\|Gst\|GST_\).*'
 AC_SUBST(GST_PLUGIN_LDFLAGS)
 
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile
+                 src/Makefile
+                 src/interfaces/Makefile
+                ])
 AC_OUTPUT
 

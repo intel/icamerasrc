@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2016-2017 Intel Corporation
+ * Copyright (C) 2017 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -41,60 +41,49 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef _GST_CAMERASRC_UTILS_H_
-#define _GST_CAMERASRC_UTILS_H_
+#define LOG_TAG "GstCameraIspInterface"
 
-#include <gst/gst.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+#include "gstcameraispinterface.h"
 #include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <iostream>
-#include <sys/syscall.h>
-#include "gst/video/video.h"
-#include <linux/videodev2.h>
 
-using namespace std;
+static void gst_camerasrc_isp_iface_init (GstCamerasrcIspInterface *ispIface);
 
-#define ALIGN(val, alignment) (((val)+(alignment)-1) & ~((alignment)-1))
-#define ALIGN_64(val) ALIGN(val, 64)
+GType
+gst_camerasrc_isp_interface_get_type (void)
+{
+  static GType gst_camerasrc_isp_interface_type = 0;
 
-// Macro for memcpy
-#define MEMCPY_S(dest, dmax, src, smax) \
-  memcpy((dest), (src), std::min((size_t)(dmax), (size_t)(smax)))
+  if (!gst_camerasrc_isp_interface_type) {
+    static const GTypeInfo gst_camerasrc_isp_interface_type_info = {
+      sizeof(GstCamerasrcIspInterface),
+      (GBaseInitFunc)gst_camerasrc_isp_iface_init,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      0,
+      0,
+      NULL,
+      NULL
+    };
 
-#define ARRAY_SIZE(array)    (sizeof(array) / sizeof((array)[0]))
+    gst_camerasrc_isp_interface_type = g_type_register_static(G_TYPE_INTERFACE,
+                               "GstCamerasrcIspInterface", &gst_camerasrc_isp_interface_type_info, (GTypeFlags)0);
 
-#define gettid() syscall(SYS_gettid)
-
-#define PRINT_FIELD(a, f) \
-      do { \
-              if (a == 2)  {f = "top";} \
-              else if (a == 3) {f = "bottom";} \
-              else if (a == 7) {f = "alternate";} \
-              else {f = "none";} \
-      } while(0)
-
-/**
-* An option that can be activated on bufferpool to request dmabuf
-* handles on buffers from the pool.
-*/
-#define GST_BUFFER_POOL_OPTION_DMABUF_MEMORY \
-  "GstBufferPoolOptionDMABUFMemory"
-
-namespace CameraSrcUtils {
-
-  int gst_fmt_2_fourcc(GstVideoFormat gst_fmt);
-
-  GstVideoFormat fourcc_2_gst_fmt(int fourcc);
-
-  gboolean check_format_by_name(const char *name);
-
-  int string_2_fourcc(const char *fmt_string);
-
-  int get_number_of_valid_lines(int format, int height);
-
-  void get_stream_info_by_caps(GstCaps *caps, const char **format, int *width, int *height);
+    if (!gst_camerasrc_isp_interface_type) {
+      g_warning("Failed to register isp interface type, ret:%d.", (int)gst_camerasrc_isp_interface_type);
+    }
+  }
+  return gst_camerasrc_isp_interface_type;
 }
 
-#endif
+static void
+gst_camerasrc_isp_iface_init (GstCamerasrcIspInterface *ispIface)
+{
+  ispIface->set_isp_control = NULL;
+  ispIface->get_isp_control = NULL;
+  ispIface->apply_isp_control = NULL;
+}

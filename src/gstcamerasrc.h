@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2015-2016 Intel Corporation
+ * Copyright (C) 2015-2017 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -46,12 +46,17 @@
 #ifndef __GST_CAMERASRC_H__
 #define __GST_CAMERASRC_H__
 #include <sys/types.h>
+#include <map>
 #include <gst/gst.h>
 #include "Parameters.h"
 #include <linux/videodev2.h>
-#include <gst/base/gstpushsrc.h>
+#include "gstcampushsrc.h"
+#include <queue>
 
 G_BEGIN_DECLS
+
+using std::map;
+using std::queue;
 
 #define DEFAULT_FRAME_WIDTH 1920
 #define DEFAULT_FRAME_HEIGHT 1080
@@ -63,11 +68,17 @@ G_BEGIN_DECLS
 #define MAX_PROP_BUFFERCOUNT 10
 #define MIN_PROP_BUFFERCOUNT 2
 #define DEFAULT_PROP_WDR_LEVEL 100
+#define DEFAULT_PROP_EXPOSURE_TIME 90
+#define DEFAULT_PROP_GAIN 0
 #define DEFAULT_PROP_PRINT_FPS false
 #define DEFAULT_PROP_PRINT_FIELD false
+#define DEFAULT_PROP_INPUT_WIDTH 0
+#define DEFAULT_PROP_INPUT_HEIGHT 0
+#define MIN_PROP_INPUT_WIDTH 0
+#define MIN_PROP_INPUT_HEIGHT 0
+#define MAX_PROP_INPUT_WIDTH 1920
+#define MAX_PROP_INPUT_HEIGHT 1080
 
-/* Default value of enum type property 'capture-mode': preview */
-#define DEFAULT_PROP_CAPTURE_MODE GST_CAMERASRC_CAPTURE_MODE_PREVIEW
 /* Default value of enum type property 'io-mode':userptr */
 #define DEFAULT_PROP_IO_MODE GST_CAMERASRC_IO_MODE_USERPTR
 /* Default value of enum type property 'interlace-mode':any */
@@ -95,6 +106,8 @@ G_BEGIN_DECLS
 #define DEFAULT_PROP_ANTIBANDING_MODE GST_CAMERASRC_ANTIBANDING_MODE_AUTO
 /* Default value of enum type property 'exp-priority':auto */
 #define DEFAULT_PROP_EXPOSURE_PRIORITY GST_CAMERASRC_EXPOSURE_PRIORITY_AUTO
+/* Default value of enum type property 'color-range':full */
+#define DEFAULT_PROP_COLOR_RANGE_MODE GST_CAMERASRC_COLOR_RANGE_MODE_FULL
 /* Default value of enum type property 'video-stabilization':off */
 #define DEFAULT_PROP_VIDEO_STABILIZATION_MODE GST_CAMERASRC_VIDEO_STABILIZATION_MODE_OFF
 /* Default value of enum type property 'buffer-flag': read */
@@ -103,17 +116,19 @@ G_BEGIN_DECLS
 /* Default value of string type properties */
 #define DEFAULT_PROP_WP NULL
 #define DEFAULT_PROP_AE_REGION NULL
+#define DEFAULT_PROP_EXPOSURE_TIME_RANGE NULL
+#define DEFAULT_PROP_GAIN_RANGE NULL
 #define DEFAULT_PROP_CCT_RANGE NULL
 #define DEFAULT_PROP_COLOR_TRANSFORM NULL
 #define DEFAULT_PROP_CUSTOM_AIC_PARAMETER NULL
 #define DEFAULT_PROP_INPUT_FORMAT NULL
 
-typedef enum
+enum
 {
-  GST_CAMERASRC_CAPTURE_MODE_PREVIEW = 0,
-  GST_CAMERASRC_CAPTURE_MODE_VIDEO = 1,
-  GST_CAMERASRC_CAPTURE_MODE_STILL = 2,
-}GstCamerasrcCaptureMode;
+  GST_CAMERASRC_MAIN_STREAM_ID = 0,
+  GST_CAMERASRC_VIDEO_STREAM_ID = 1,
+  GST_CAMERASRC_MAX_STREAM_NUM,
+};
 
 typedef enum
 {
@@ -185,7 +200,8 @@ typedef enum
   GST_CAMERASRC_SCENE_MODE_OUTOOR = 6,
   GST_CAMERASRC_SCENE_MODE_CUSTOM_AIC = 7,
   GST_CAMERASRC_SCENE_MODE_VIDEO_LL = 8,
-  GST_CAMERASRC_SCENE_MODE_DISABLED = 9,
+  GST_CAMERASRC_SCENE_MODE_STILL_CAPTURE = 9,
+  GST_CAMERASRC_SCENE_MODE_DISABLED = 10,
 } GstCamerasrcSceneMode;
 
 typedef enum
@@ -247,6 +263,12 @@ typedef enum
 
 typedef enum
 {
+  GST_CAMERASRC_COLOR_RANGE_MODE_FULL = 0,
+  GST_CAMERASRC_COLOR_RANGE_MODE_REDUCED = 1,
+} GstCamerasrcColorRangeMode;
+
+typedef enum
+{
   GST_CAMERASRC_BUFFER_USAGE_NONE = 0,
   GST_CAMERASRC_BUFFER_USAGE_READ = 1,
   GST_CAMERASRC_BUFFER_USAGE_WRITE = 2,
@@ -269,11 +291,27 @@ typedef enum
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_CAMERASRC))
 #define GST_IS_CAMERASRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_CAMERASRC))
+#define GST_CAMERASRC_CAST(obj) \
+  ((Gstcamerasrc *)(obj))
+
+#define GST_CAMSRC_GET_LOCK(src) \
+  (&GST_CAMERASRC_CAST(src)->lock)
+#define GST_CAMSRC_LOCK(src) \
+  g_mutex_lock(GST_CAMSRC_GET_LOCK(src))
+#define GST_CAMSRC_UNLOCK(src) \
+  g_mutex_unlock(GST_CAMSRC_GET_LOCK(src))
+#define GST_CAMSRC_GET_COND(src) \
+  (&GST_CAMERASRC_CAST(src)->cond)
+#define GST_CAMSRC_WAIT(src) \
+  g_cond_wait(GST_CAMSRC_GET_COND(src), GST_CAMSRC_GET_LOCK(src))
+#define GST_CAMSRC_SIGNAL(src) \
+  g_cond_signal(GST_CAMSRC_GET_COND(src))
 
 typedef struct _Gstcamerasrc Gstcamerasrc;
 typedef struct _GstcamerasrcClass GstcamerasrcClass;
 typedef struct _GstFpsDebug GstFpsDebug;
 typedef struct _Gst3AManualControl Gst3AManualControl;
+typedef struct _GstStreamInfo GstStreamInfo;
 
 /* Used to update fps*/
 struct _GstFpsDebug
@@ -300,7 +338,7 @@ struct _Gst3AManualControl
   /* Exposure Settings*/
   int iris_mode;
   guint iris_level;
-  guint exposure_time;
+  int exposure_time;
   guint exposure_ev;
   int exposure_priority;
   gfloat gain;
@@ -309,6 +347,8 @@ struct _Gst3AManualControl
   char ae_region[128];
   int converge_speed;
   int converge_speed_mode;
+  gchar *exp_time_range;
+  gchar *gain_range;
   /* Backlight Settings*/
   int blc_area_mode;
   guint wdr_level;
@@ -331,15 +371,23 @@ struct _Gst3AManualControl
   gchar *custom_aic_param;
 
   int antibanding_mode;
+
+  int color_range_mode;
+
+  /* Flags to monitor if property is set.
+   * We only consider monitoring 'exposure-time', 'gain',
+   * and 'scene-mode' because they have dependency
+   * to each other */
+  gboolean manual_set_exposure_time;
+  gboolean manual_set_gain;
+  gboolean manual_set_scene_mode;
 };
 
 using namespace icamera;
-struct _Gstcamerasrc
+
+/* Describe info of each stream when constructing bufferpool */
+struct _GstStreamInfo
 {
-  GstPushSrc element;
-
-  GstPad *srcpad, *sinkpad;
-
   GstBufferPool *pool;
 
   /* This is used for down stream plugin buffer pool, in
@@ -348,54 +396,88 @@ struct _Gstcamerasrc
   GstBufferPool *downstream_pool;
 
   /* Weave buffers are used only when deinterlace_method='sw_weave'
-    * top stores odd lines
-    * bottom stores even lines */
+    * top stores odd lines, bottom stores even lines, previous_buffer
+    * stores data from previous buffer */
   camera_buffer_t *top;
   camera_buffer_t *bottom;
+  camera_buffer_t *previous_buffer;
 
-  /* Buffer configuration*/
-  guint64 offset;
-  int stream_id;
+  /* Buffer config */
   guint bpl;
   GstVideoInfo info;
   const char *fmt_name;
-  stream_config_t  stream_list;
-  stream_t      streams[1]; //FIXME: Support only one stream now.
   camera_info_t cam_info;
-  gboolean first_frame;
-  int buffer_usage;
 
-  /*non-3A properties*/
+  /* stream config flag */
+  gboolean stream_config_done;
+
+  /* buffers queue */
+  queue<camera_buffer_t*> *buffer_queue;
+
+  /* Calculate Gstbuffer timestamp*/
+  GstClockTime time_end;
+  GstClockTime time_start;
+  GstClockTime gstbuf_timestamp;
+
+  /* Fps of stream */
+  GstFpsDebug fps_debug;
+};
+
+struct _Gstcamerasrc
+{
+  GstCamPushSrc element;
+
+  /* Stream config */
+  map<std::string, int> stream_map;
+  stream_config_t  stream_list;
+  GstStreamInfo streams[GST_CAMERASRC_MAX_STREAM_NUM];
+  stream_t s[GST_CAMERASRC_MAX_STREAM_NUM];
+  camera_buffer_t *buffer_list[GST_CAMERASRC_MAX_STREAM_NUM];
+
+  /* Pipeline config */
   int number_of_cameras;
+  int number_of_activepads;
+  gboolean first_frame;
+  gboolean camera_open;
+  Parameters *param;
+  gboolean running;
+
+  /* Used with GST_CAMSRC_LOCK and GST_CAMSRC_WAIT etc. */
+  GMutex lock;
+  GCond cond;
+
+  /* Protection for bufferpool activation */
+  gboolean start_config;
+  gboolean start_streams;
+  int stream_start_count;
+
+  /* Used for buffer queue action */
+  GMutex qbuf_mutex;
+
+  /* non-3A properties */
   int device_id;
   int interlace_field;
   int deinterlace_method;
   int io_mode;
-  int capture_mode;
+  int video_stabilization_mode;
+  int buffer_usage;
   guint number_of_buffers;
+  guint num_vc;
   gboolean print_fps;
   gboolean print_field;
-  GstFpsDebug fps_debug;
-  guint num_vc;
-  int video_stabilization_mode;
   const char *input_fmt;
+  stream_t input_config;
 
-  /*3A properties */
-  gboolean camera_open;
-  Parameters *param;
+  /* 3A properties */
   Gst3AManualControl man_ctl;
 
-  /* Calculate Gstbuffer timestamp*/
-  uint64_t time_end;
-  uint64_t time_start;
-
-  /*log print level*/
+  /* log print level */
   int debugLevel;
 };
 
 struct _GstcamerasrcClass
 {
-  GstPushSrcClass parent_class;
+  GstCamPushSrcClass parent_class;
 };
 
 GType gst_camerasrc_get_type (void);

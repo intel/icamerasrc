@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2016 Intel Corporation
+ * Copyright (C) 2015-2017 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -45,7 +45,7 @@
 #define __GST_CAMERASRC_BUFFER_POOL_H__
 
 #include <gst/gst.h>
-#include <gst/base/gstpushsrc.h>
+#include "gstcampushsrc.h"
 #include "gstcamerasrc.h"
 
 typedef struct _GstCamerasrcBufferPool GstCamerasrcBufferPool;//in use of qbuf&dqbuf
@@ -80,6 +80,9 @@ struct _GstCamerasrcBufferPool
   gint number_allocated;
   gint acquire_buffer_index;
   gint size;
+
+  int stream_id;
+  gboolean alloc_done;
 };
 
 struct _GstCamerasrcBufferPoolClass
@@ -98,7 +101,8 @@ struct _GstCamerasrcMeta {
 GType gst_camerasrc_meta_api_get_type (void);
 GType gst_camerasrc_buffer_pool_get_type(void);
 const GstMetaInfo * gst_camerasrc_meta_get_info (void);
-GstBufferPool *gst_camerasrc_buffer_pool_new(Gstcamerasrc *src, GstCaps *caps);
+GstBufferPool *gst_camerasrc_buffer_pool_new(Gstcamerasrc *src,
+          GstCaps *caps, int stream_id);
 
 G_END_DECLS
 #endif

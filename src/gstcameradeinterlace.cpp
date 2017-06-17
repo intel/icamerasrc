@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2016 Intel Corporation
+ * Copyright (C) 2015-2017 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -71,19 +71,21 @@ void gst_camerasrc_copy_field(Gstcamerasrc *camerasrc,
        camera_buffer_t *src,
        camera_buffer_t *dst)
 {
+  GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL_CAST(camerasrc);
+  int stream_id = pool->stream_id;
 
   if (camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE)
     return;
 
   char *addr = (char *)src->addr;
-  const int bytes_of_line = camerasrc->bpl;
-  const int height = CameraSrcUtils::get_number_of_valid_lines(camerasrc->streams[0].format,
-                         camerasrc->streams[0].height);
+  const int bytes_of_line = camerasrc->streams[stream_id].bpl;
+  const int height = CameraSrcUtils::get_number_of_valid_lines(camerasrc->s[stream_id].format,
+                         camerasrc->s[stream_id].height);
   int odd_even = 0;
 
-  if (dst == camerasrc->top)
+  if (dst == camerasrc->streams[stream_id].top)
     odd_even = 1;
-  else if (dst == camerasrc->bottom)
+  else if (dst == camerasrc->streams[stream_id].bottom)
     odd_even = 2;
 
   for (int m = height/2; m>0; m--) {
@@ -92,15 +94,42 @@ void gst_camerasrc_copy_field(Gstcamerasrc *camerasrc,
   }
 }
 
+void gst_camerasrc_update_previous_buffer(Gstcamerasrc *camerasrc,
+       camera_buffer_t *currentBuffer, int &seq_diff)
+{
+  GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL_CAST(camerasrc);
+  int stream_id = pool->stream_id;
+
+  /* currently we only update previous buffer when do sw_weaving*/
+  if (camerasrc->deinterlace_method != GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE)
+    return;
+
+  /* copy buffer data to previous_buffer for storage */
+  char *addr = (char *)currentBuffer->addr;
+  const int bytes_of_line = camerasrc->streams[stream_id].bpl;
+  const int height = CameraSrcUtils::get_number_of_valid_lines(camerasrc->s[stream_id].format,
+                         camerasrc->s[stream_id].height);
+
+  for (int m = height/2; m>0; m--) {
+    MEMCPY_S((char *)camerasrc->streams[stream_id].previous_buffer->addr + m*bytes_of_line,
+               bytes_of_line, addr + m*bytes_of_line, bytes_of_line);
+  }
+
+  seq_diff = currentBuffer->sequence - camerasrc->streams[stream_id].previous_buffer->sequence;
+  camerasrc->streams[stream_id].previous_buffer->sequence = currentBuffer->sequence;
+}
+
 static int
 gst_camerasrc_deinterlace_sw_bob(Gstcamerasrc *camerasrc,
                camera_buffer_t *buffer)
 {
   PERF_CAMERA_ATRACE();
+  GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL_CAST(camerasrc);
+  int stream_id = pool->stream_id;
   char *addr = (char *)buffer->addr;
-  const int bytes_of_line = camerasrc->bpl;
-  const int height = CameraSrcUtils::get_number_of_valid_lines(camerasrc->streams[0].format,
-                         camerasrc->streams[0].height);
+  const int bytes_of_line = camerasrc->streams[stream_id].bpl;
+  const int height = CameraSrcUtils::get_number_of_valid_lines(camerasrc->s[stream_id].format,
+                         camerasrc->s[stream_id].height);
 
   for (int i = height/2; i > 0 ; i--) {
     MEMCPY_S(addr + (i*2-1)*bytes_of_line, bytes_of_line, addr + (i-1)*bytes_of_line, bytes_of_line);
@@ -120,10 +149,12 @@ gst_camerasrc_deinterlace_sw_weave(Gstcamerasrc *camerasrc,
                camera_buffer_t * dest)
 {
   PERF_CAMERA_ATRACE();
+  GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL_CAST(camerasrc);
+  int stream_id = pool->stream_id;
   char *addr = (char *)dest->addr;
-  const int bytes_of_line = camerasrc->bpl;
-  const int height = CameraSrcUtils::get_number_of_valid_lines(camerasrc->streams[0].format,
-                         camerasrc->streams[0].height);
+  const int bytes_of_line = camerasrc->streams[stream_id].bpl;
+  const int height = CameraSrcUtils::get_number_of_valid_lines(camerasrc->s[stream_id].format,
+                         camerasrc->s[stream_id].height);
 
   /* Weave topfield buffer and bottomfield buffer into output buffer */
   for (int i = height/2; i > 0; i--) {
@@ -140,6 +171,8 @@ gst_camerasrc_deinterlace_sw_weave(Gstcamerasrc *camerasrc,
 int gst_camerasrc_deinterlace_frame(Gstcamerasrc *camerasrc, camera_buffer_t *buffer)
 {
   PERF_CAMERA_ATRACE();
+  GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL_CAST(camerasrc);
+  int stream_id = pool->stream_id;
 
   switch (camerasrc->deinterlace_method) {
     case GST_CAMERASRC_DEINTERLACE_METHOD_NONE:
@@ -149,8 +182,8 @@ int gst_camerasrc_deinterlace_frame(Gstcamerasrc *camerasrc, camera_buffer_t *bu
       return gst_camerasrc_deinterlace_sw_bob(camerasrc, buffer);
     case GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE:
       return gst_camerasrc_deinterlace_sw_weave(camerasrc,
-                 camerasrc->top,
-                 camerasrc->bottom,
+                 camerasrc->streams[stream_id].top,
+                 camerasrc->streams[stream_id].bottom,
                  buffer);
     default:
       break;

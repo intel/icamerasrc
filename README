@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2016 Intel Corporation
+#  Copyright (C) 2016-2017 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -43,29 +43,52 @@
 
 User Guide
         1. Setup environment
-        2. Configure
+        2. Configure icamerasrc
         3. Build icamerasrc with Makefile
         4. Build and install icamerasrc RPM
-        5. Running Gstreamer pipeline with icamerasrc
+        5. Run Gstreamer pipeline with icamerasrc
 
 Setup environment
 =============
 
-    Prerequisite packages:
+    System requirements:
         Ubuntu 14.04
         glib-2.0
         gobject-2.0
         gstreamer-1.0(Version 1.7.9 is preferred)
-        libcamhal
         autoconf
         libtool
 
-Configure
+    Prerequisite packages:
+        aiqb
+        libiaaiq
+        libiacss
+        libcamhal
+
+    Install prerequisite prerequisite packages:
+        sudo rpm -ivh *.rpm --nodeps
+
+    Source toolchain:
+        source <abs path of your toolchain script>
+
+Configure icamerasrc
 =============
 
         autoreconf --install
 
-        ./configure -I$libcamhal_dir/include -I$libcamhal_dir/include/api -I$libcamhal_dir/include/utils LDFLAGS=-L$libcamhal_dir/lib
+    Strongly recommend to assign location to 'LIBCAMHAL_INSTALL_DIR' and 'ICAMERASRC_INSTALL_DIR',
+    otherwise icamerasrc will find header files and libs of libcamhal in default location:
+        "/usr/include" and  "/usr/lib"
+    which might be unsafe locations for certain toolchain that cause configure failure.
+    (e.g. export LIBCAMHAL_INSTALL_DIR=<abs_path>/libcamhal,
+     the subdirectory of $LIBCAMHAL_INSTALL_DIR should be including:
+      1.include/
+      2.include/api
+      3.include/utils
+      4.include/lib)
+
+    then start configuring:
+        CPPFLAGS="-I$LIBCAMHAL_INSTALL_DIR/include/ -I$LIBCAMHAL_INSTALL_DIR/include/api -I$LIBCAMHAL_INSTALL_DIR/include/utils " LDFLAGS="-L$LIBCAMHAL_INSTALL_DIR/lib/" CFLAGS="-O2" CXXFLAGS="-O2" ./configure ${CONFIGURE_FLAGS} --prefix=$ICAMERASRC_INSTALL_DIR DEFAULT_CAMERA=0
 
 Build icamerasrc with Makefile
 =============
@@ -87,7 +110,7 @@ Build and install icamerasrc RPM
     Install RPM:
         rpm -ivh icamerasrc-*.rpm
 
-Running Gstreamer pipeline with icamerasrc
+Run Gstreamer pipeline with icamerasrc
 =============
 
     To capture from tpg @YUYV_1080p:
@@ -111,3 +134,7 @@ Running Gstreamer pipeline with icamerasrc
                        icamerasrc num-vc=4 device-name=aggregator-2 ! video/x-raw,format=UYVY,width=1280,height=720 ! filesink location=stream2_720p \
                        icamerasrc num-vc=4 device-name=aggregator-3 ! video/x-raw,format=UYVY,width=720,height=576 ! filesink location=stream3_576p \
                        icamerasrc num-vc=4 device-name=aggregator-4 ! video/x-raw,format=UYVY,width=640,height=480 ! filesink location=stream4_vga
+
+    To capture from multi-stream(start multiple streams with one sensor) @NV12_1080p + @NV12_1080p
+        gst-launch-1.0 icamerasrc device-name=imx185 name=t t.src ! queue ! video/x-raw,format=NV12,width=1920,height=1080 ! vaapipostproc ! vaapisink \
+                                                     t.video ! queue ! video/x-raw,format=NV12,width=1920,height=1080 ! vaapipostproc ! vaapisink

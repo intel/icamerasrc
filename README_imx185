@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2016 Intel Corporation
+#  Copyright (C) 2016-2017 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -60,14 +60,14 @@ iris-mode              Enum               N/A            0:auto               0:
 
 exposure-time          Int                30~33333       N/A                  30                     Range differs according to sensor and value of scene-mode
                                                                                                      [sensor]/[scene-mode]/[supported range]
-                                                                                                     ov13860/auto/30~33333
+                                                                                                     ov13860/auto/90~33333
                                                                                                      ov13860/hdr/2400~33328
-                                                                                                     ov13860/ull/30~33333
-                                                                                                     imx185/auto/30~33333
+                                                                                                     ov13860/ull/90~33333
+                                                                                                     imx185/auto/90~33333
                                                                                                      imx185/hdr/2400~33328
-                                                                                                     imx185/ull/30~33333
-                                                                                                     imx185/hlc/30~33333
-                                                                                                     imx185/video-ll/30~33333
+                                                                                                     imx185/ull/90~33333
+                                                                                                     imx185/hlc/90~33333
+                                                                                                     imx185/video-ll/90~33333
 
 ev                     Int                -4~4           N/A                  0
 
@@ -169,3 +169,8 @@ antibanding-mode       Enum               N/A            0:auto               0:
                                                          1:50
                                                          2:60
                                                          3:off
+
+color-range            Enum               N/A            0:full
+                                                         1:reduced            0:full
+
+gain-range             String             N/A            N/A                  null

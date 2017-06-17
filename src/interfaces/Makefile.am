@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2016 Intel Corporation
+#  Copyright (C) 2016-2017 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -41,34 +41,29 @@
 #  Boston, MA 02111-1307, USA.
 #
 
-Summary: Linux icamerasrc
-Name: icamerasrc
-Version: %{version}
-Release: %{release}
-License: LGPL
-Group: Development/Tools
-Prefix: /usr/lib/gstreamer-1.0
-BuildRoot: %(mktemp -ud %{_builddir}/%{name}-%{version}-%{release}-XXXXXX)
-%description
-Linux camera src.
+lib_LTLIBRARIES = libgsticamerainterface.la
 
-%prep
-%build
+libgsticamerainterface_la_SOURCES = gstcamera3ainterface.cpp \
+                                    gstcameraispinterface.cpp
 
-%install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}/usr/lib/gstreamer-1.0
-mkdir -p %{buildroot}/usr/include/icamerasrc/interfaces
-mkdir -p %{buildroot}/usr/include/gstreamer-1.0/gst
+libgsticamerainterface_la_CPPFLAGS = -std=c++11 \
+    -Wall -Werror \
+    $(GST_CFLAGS) \
+    $(LIBUTILS_CFLAGS) \
+    -I$(LIBCAMHAL_INSTALL_DIR)/include/api
 
-cp -v %{_srcdir}/src/.libs/*.so* %{buildroot}/usr/lib/gstreamer-1.0
-cp -v %{_srcdir}/src/.libs/*.la  %{buildroot}/usr/lib/gstreamer-1.0
-cp -v %{_srcdir}/src/interfaces/.libs/*.so* %{buildroot}/usr/lib/
-cp -v %{_srcdir}/src/interfaces/.libs/*.la %{buildroot}/usr/lib/
-cp -v %{_srcdir}/src/interfaces/*.h %{buildroot}/usr/include/icamerasrc/interfaces
-cp -v %{_srcdir}/src/interfaces/*.h %{buildroot}/usr/include/gstreamer-1.0/gst
+# for hardening-check
+libgsticamerainterface_la_CPPFLAGS += -fstack-protector-all -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
 
-%files
-/usr/lib/gstreamer-1.0
-/usr/lib/
-/usr/include/
+libgsticamerainterface_la_LIBADD = $(GST_LIBS) \
+    $(HAL_LIB)
+
+# for hardening-check
+libgsticamerainterface_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now
+
+libgsticamerainterface_la_LIBTOOLFLAGS = --tag=disable-static
+
+libgsticamerainterfaceincludedir = $(inludedir)
+
+libgsticamerainterfaceinclude_HEADERS = gstcamera3ainterface.h \
+                                        gstcameraispinterface.h

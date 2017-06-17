@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2016 Intel Corporation
+ * Copyright (C) 2015-2017 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -45,13 +45,15 @@
 #define __GST_CAMERASRC_DEINTERLACE_H__
 
 #include <gst/gst.h>
-#include <gst/base/gstpushsrc.h>
+#include "gstcampushsrc.h"
 #include "gstcamerasrc.h"
 
 bool gst_camerasrc_isPlanarFormat(int format);
 void gst_camerasrc_copy_field(Gstcamerasrc *camerasrc,
         camera_buffer_t *src,
         camera_buffer_t *dst);
+void gst_camerasrc_update_previous_buffer(Gstcamerasrc *camerasrc,
+        camera_buffer_t *currentBuffer, int &seq_diff);
 int gst_camerasrc_deinterlace_frame(Gstcamerasrc *camerasrc, camera_buffer_t *buffer);
 
 #endif /* __GST_CAMERASRC_DEINTERLACE_H__ */
