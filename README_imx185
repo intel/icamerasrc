@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2016-2017 Intel Corporation
+#  Copyright (C) 2016 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -58,16 +58,14 @@ iris-mode              Enum               N/A            0:auto               0:
                                                          1:manual
                                                          2:customizd
 
-exposure-time          Int                30~33333       N/A                  30                     Range differs according to sensor and value of scene-mode
+exposure-time          Int                0~1000000      N/A                  0                      Range differs according to sensor and value of scene-mode
                                                                                                      [sensor]/[scene-mode]/[supported range]
-                                                                                                     ov13860/auto/90~33333
-                                                                                                     ov13860/hdr/2400~33328
-                                                                                                     ov13860/ull/90~33333
-                                                                                                     imx185/auto/90~33333
-                                                                                                     imx185/hdr/2400~33328
-                                                                                                     imx185/ull/90~33333
-                                                                                                     imx185/hlc/90~33333
-                                                                                                     imx185/video-ll/90~33333
+                                                                                                     ov13860/auto/0~1000000
+                                                                                                     ov13860/hdr/150~2100
+                                                                                                     ov13860/ull/0~1000000
+                                                                                                     imx185/auto/0~1000000
+                                                                                                     imx185/hdr/150~2100
+                                                                                                     imx185/ull/0~33333
 
 ev                     Int                -4~4           N/A                  0
 
@@ -84,10 +82,6 @@ gain                   Float              0.0~60.0       N/A                  0.
                                                                                                      imx185/auto/0.0~60.0
                                                                                                      imx185/hdr/0.0~12.0
                                                                                                      imx185/ull/0.0~60.0
-                                                                                                     imx185/hlc/0.0~60.0
-                                                                                                     imx185/video-ll/0.0~60.0
-
-wdr-level              Int                0~200          N/A                  0
 
 ae-mode                Enum               N/A            0:auto               0:auto
                                                          1:manual
@@ -128,6 +122,8 @@ awb-mode               Enum               N/A            0:auto               0:
                                                          10:manual_gain
                                                          11:color_transform
 
+awb-region             String             N/A            N/A                  null
+
 cct-range              String             N/A            N/A                  null
 
 wp-point               String             N/A            N/A                  null
@@ -146,6 +142,12 @@ awb-shift-g            Int                0~255          N/A                  0
 
 color-transform        String             N/A            N/A                  null
 
+overall                Int                0~100          N/A                  0
+
+spatial                Int                0~100          N/A                  0
+
+temporal               Int                0~100          N/A                  0
+
 scene-mode             Enum               N/A            0:auto               0:auto
                                                          1:hdr
                                                          2:ull
@@ -161,16 +163,9 @@ sensor-resolution      Enum               N/A            0:1080p              0:
                                                          1:720p
                                                          2:4K
 
-iris-level             Int                0~100          N/A                  0
-
 custom-aic-param       String             N/A            N/A                  null
 
 antibanding-mode       Enum               N/A            0:auto               0:auto
                                                          1:50
                                                          2:60
                                                          3:off
-
-color-range            Enum               N/A            0:full
-                                                         1:reduced            0:full
-
-gain-range             String             N/A            N/A                  null
