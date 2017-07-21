@@ -862,6 +862,7 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
     camerasrc->stream_id = -1;
 
     if (camerasrc->downstream_pool) {
+      gst_buffer_pool_set_active(camerasrc->downstream_pool, FALSE);
       if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_IMPORT)
         backup_downstream_pool = camerasrc->downstream_pool;
 
