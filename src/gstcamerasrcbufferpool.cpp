@@ -869,10 +869,6 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
   if (pool->allocator)
     gst_object_unref(pool->allocator);
 
-  /* free buffers in the queue */
-  if (!GST_BUFFER_POOL_CLASS(parent_class)->stop(bpool))
-    return FALSE;
-
   /* free topfield buffer and bottomfield buffer, both for temp storage */
   if (camerasrc->interlace_field == GST_CAMERASRC_INTERLACE_FIELD_ALTERNATE &&
         camerasrc->deinterlace_method == GST_CAMERASRC_DEINTERLACE_METHOD_SOFTWARE_WEAVE)
