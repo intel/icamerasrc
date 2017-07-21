@@ -848,6 +848,7 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL(bpool);
   Gstcamerasrc *camerasrc = pool->src;
   GST_INFO("CameraId=%d.", camerasrc->device_id);
+  GstBufferPool *backup_downstream_pool = NULL;
 
   /* Calculate max/min/average fps */
   if (camerasrc->print_fps) {
@@ -860,8 +861,12 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
     camera_device_close(camerasrc->device_id);
     camerasrc->stream_id = -1;
 
-    if (camerasrc->downstream_pool)
+    if (camerasrc->downstream_pool) {
+      if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_IMPORT)
+        backup_downstream_pool = camerasrc->downstream_pool;
+
       gst_object_unref(camerasrc->downstream_pool);
+    }
 
     if (camerasrc->pool)
       gst_object_unref(camerasrc->pool);
@@ -880,6 +885,18 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
   /* free the remaining buffers */
   for (int n = 0; n < pool->number_allocated; n++)
     gst_camerasrc_buffer_pool_free_buffer (bpool, pool->buffers[n]);
+
+  if (backup_downstream_pool) {
+    int count_ref = GST_OBJECT_REFCOUNT_VALUE((GstObject *) backup_downstream_pool);
+    do {
+      GST_DEBUG("gst_camerasrc_buffer_pool_stop: force unref downstream_pool %p ref_count %d\n",
+                   backup_downstream_pool, GST_OBJECT_REFCOUNT_VALUE((GstObject *) backup_downstream_pool));
+      gst_object_unref(backup_downstream_pool);
+      if (backup_downstream_pool) {
+         count_ref = GST_OBJECT_REFCOUNT_VALUE((GstObject *) backup_downstream_pool);
+      }
+    } while (count_ref != 0);
+  }
 
   pool->number_allocated = 0;
   g_free(pool->buffers);
