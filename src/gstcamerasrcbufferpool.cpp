@@ -801,7 +801,7 @@ gst_camerasrc_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer
       break;
     case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
     case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
-      if (meta->buffer->dmafd)
+      if (meta->buffer->dmafd >= 0)
         close(meta->buffer->dmafd);
       break;
     default:
