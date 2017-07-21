@@ -863,6 +863,9 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
     if (camerasrc->downstream_pool)
       gst_object_unref(camerasrc->downstream_pool);
 
+    if (camerasrc->pool)
+      gst_object_unref(camerasrc->pool);
+
     camerasrc->camera_open = false;
   }
 
