@@ -111,6 +111,7 @@ enum
   PROP_EXPOSURE_PRIORITY,
   PROP_GAIN,
   PROP_AE_MODE,
+  PROP_AF_MODE,
   PROP_WEIGHT_GRID_MODE,
   PROP_AE_REGION,
   PROP_EXPOSURE_TIME_RANGE,
@@ -223,6 +224,8 @@ static gboolean gst_camerasrc_set_scene_mode (GstCamerasrc3A *cam3a,
     camera_scene_mode_t sceneMode);
 static gboolean gst_camerasrc_set_ae_mode (GstCamerasrc3A *cam3a,
     camera_ae_mode_t aeMode);
+static gboolean gst_camerasrc_set_af_mode (GstCamerasrc3A *cam3a,
+    camera_af_mode_t afMode);
 static gboolean gst_camerasrc_set_weight_grid_mode (GstCamerasrc3A *cam3a,
     camera_weight_grid_mode_t weightGridMode);
 static gboolean gst_camerasrc_set_ae_converge_speed (GstCamerasrc3A *cam3a,
@@ -621,6 +624,28 @@ gst_camerasrc_ae_mode_get_type(void)
 }
 
 static GType
+gst_camerasrc_af_mode_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType af_mode_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_AF_MODE_OFF,
+          "Off", "off"},
+    {GST_CAMERASRC_AF_MODE_AUTO,
+          "Auto", "auto"},
+    {GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO,
+          "Video", "video"},
+    {0, NULL, NULL},
+   };
+
+  if (!af_mode_type) {
+    af_mode_type = g_enum_register_static ("GstCamerasrcAfMode", method_types);
+  }
+  return af_mode_type;
+}
+
+static GType
 gst_camerasrc_weight_grid_mode_get_type(void)
 {
   PERF_CAMERA_ATRACE();
@@ -1002,6 +1027,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum ("ae-mode", "AE mode", "AE mode",
           gst_camerasrc_ae_mode_get_type(), DEFAULT_PROP_AE_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_AF_MODE,
+      g_param_spec_enum ("af-mode", "AF mode", "AF mode",
+          gst_camerasrc_af_mode_get_type(), DEFAULT_PROP_AF_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_WEIGHT_GRID_MODE,
       g_param_spec_enum ("weight-grid-mode", "Weight Grid Mode", "Weight Grid Mode",
           gst_camerasrc_weight_grid_mode_get_type(), DEFAULT_PROP_WEIGHT_GRID_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -1258,6 +1287,7 @@ gst_camerasrc_3a_interface_init (GstCamerasrc3AInterface *iface)
   iface->set_awb_gain = gst_camerasrc_set_awb_gain;
   iface->set_scene_mode = gst_camerasrc_set_scene_mode;
   iface->set_ae_mode = gst_camerasrc_set_ae_mode;
+  iface->set_af_mode = gst_camerasrc_set_af_mode;
   iface->set_weight_grid_mode = gst_camerasrc_set_weight_grid_mode;
   iface->set_ae_converge_speed = gst_camerasrc_set_ae_converge_speed;
   iface->set_awb_converge_speed = gst_camerasrc_set_awb_converge_speed;
@@ -1929,6 +1959,19 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       src->param->setAeMode((camera_ae_mode_t)g_value_get_enum(value));
       src->man_ctl.ae_mode = g_value_get_enum(value);
       break;
+    case PROP_AF_MODE:
+      src->man_ctl.af_mode = g_value_get_enum(value);
+
+      if (src->man_ctl.af_mode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_OFF) {
+          src->man_ctl.af_mode = AF_MODE_OFF;
+      } else if (src->man_ctl.af_mode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_AUTO) {
+          src->man_ctl.af_mode = AF_MODE_AUTO;
+      } else if (src->man_ctl.af_mode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO) {
+          src->man_ctl.af_mode = AF_MODE_CONTINUOUS_VIDEO;
+      }
+
+      src->param->setAfMode((camera_af_mode_t)src->man_ctl.af_mode);
+      break;
     case PROP_WEIGHT_GRID_MODE:
       src->param->setWeightGridMode((camera_weight_grid_mode_t)g_value_get_enum(value));
       src->man_ctl.weight_grid_mode = g_value_get_enum(value);
@@ -2183,11 +2226,14 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
     case PROP_SCENE_MODE:
       g_value_set_enum (value, src->man_ctl.scene_mode);
       break;
-   case PROP_SENSOR_RESOLUTION:
+    case PROP_SENSOR_RESOLUTION:
       g_value_set_enum (value, src->man_ctl.sensor_resolution);
       break;
     case PROP_AE_MODE:
       g_value_set_enum (value, src->man_ctl.ae_mode);
+      break;
+    case PROP_AF_MODE:
+      g_value_set_enum (value, src->man_ctl.af_mode);
       break;
     case PROP_WEIGHT_GRID_MODE:
       g_value_set_enum (value, src->man_ctl.weight_grid_mode);
@@ -3270,6 +3316,32 @@ gst_camerasrc_set_ae_mode (GstCamerasrc3A *cam3a,
   camerasrc->param->setAeMode(aeMode);
   camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
   g_message("Interface Called: @%s, ae mode=%d.", __func__, (int)aeMode);
+
+  return TRUE;
+}
+
+/* Set AF mode
+* param[in]        cam3a    Camera Source handle
+* param[in]        afMode        AF_MODE_AUTO,
+*                                AF_MODE_CONTINUOUS_VIDEO,
+*                                AF_MODE_MANUAL
+* return 0 if set successfully, otherwise non-0 value is returned
+*/
+static gboolean
+gst_camerasrc_set_af_mode (GstCamerasrc3A *cam3a,
+    camera_af_mode_t afMode)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  if (afMode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO) {
+      camerasrc->param->setAfMode(AF_MODE_CONTINUOUS_VIDEO);
+  } else if (afMode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_OFF) {
+      camerasrc->param->setAfMode(AF_MODE_OFF);
+  } else if (afMode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_AUTO) {
+      camerasrc->param->setAfMode(AF_MODE_AUTO);
+  } 
+
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s, af mode=%d.", __func__, (int)afMode);
 
   return TRUE;
 }

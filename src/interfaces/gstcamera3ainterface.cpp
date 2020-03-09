@@ -96,6 +96,7 @@ gst_camerasrc_3a_iface_init (GstCamerasrc3AInterface *iface)
   iface->set_awb_gain = NULL;
   iface->set_scene_mode = NULL;
   iface->set_ae_mode = NULL;
+  iface->set_af_mode = NULL;
   iface->set_weight_grid_mode = NULL;
   iface->set_ae_converge_speed = NULL;
   iface->set_awb_converge_speed = NULL;

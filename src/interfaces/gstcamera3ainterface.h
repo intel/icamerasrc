@@ -192,6 +192,15 @@ struct _GstCamerasrc3AInterface {
   */
   gboolean      (*set_ae_mode)      (GstCamerasrc3A *cam3a, camera_ae_mode_t aeMode);
 
+  /* Set AF mode
+  * param[in]        cam3a    Camera Source handle
+  * param[in]        afMode        AF_MODE_OFF,
+  *                                AF_MODE_AUTO,
+  *                                AF_MODE_CONTINUOUS_VIDEO,
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*set_af_mode)      (GstCamerasrc3A *cam3a, camera_af_mode_t afMode);
+
   /* Set weight grid mode
   * param[in]        cam3a    Camera Source handle
   * param[in]        weightGridMode        WEIGHT_GRID_AUTO(default),
