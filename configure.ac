@@ -64,7 +64,7 @@ AC_PROG_CXX
 
 dnl required version of libtool
 LT_PREREQ([2.2.6])
-LT_INIT
+LT_INIT([disable-static])
 
 dnl give error and exit if we don't have pkgconfig
 AC_CHECK_PROG(HAVE_PKGCONFIG, pkg-config, [ ], [

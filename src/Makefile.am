@@ -95,8 +95,6 @@ libgsticamerasrc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 # for hardening-check
 libgsticamerasrc_la_LDFLAGS += -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now
 
-libgsticamerasrc_la_LIBTOOLFLAGS = --tag=disable-static
-
 # headers we need but don't want installed
 noinst_HEADERS = gstcamerasrc.h \
                  gstcameraformat.h \
