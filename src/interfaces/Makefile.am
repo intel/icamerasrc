@@ -65,7 +65,7 @@ libgsticamerainterface_la_LIBADD = $(GST_LIBS) $(CAMHAL_LIBS)
 # for hardening-check
 libgsticamerainterface_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now
 
-libgsticamerainterfaceincludedir = $(inludedir)
+libgsticamerainterfaceincludedir = $(includedir)/gstreamer-@GST_API_VERSION@/gst/icamera
 
 libgsticamerainterfaceinclude_HEADERS = gstcamera3ainterface.h \
                                         gstcameraispinterface.h \
