@@ -66,6 +66,13 @@ dnl required version of libtool
 LT_PREREQ([2.2.6])
 LT_INIT([disable-static])
 
+m4_define([lt_current], 1)
+m4_define([lt_revision], 0)
+m4_define([lt_age], 0)
+m4_define([lt_version_info], [lt_current:lt_revision:lt_age])
+LT_VERSION_INFO=lt_version_info
+AC_SUBST(LT_VERSION_INFO)
+
 dnl give error and exit if we don't have pkgconfig
 AC_CHECK_PROG(HAVE_PKGCONFIG, pkg-config, [ ], [
   AC_MSG_ERROR([You need to have pkg-config installed!])

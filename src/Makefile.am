@@ -88,7 +88,7 @@ libgsticamerasrc_la_CPPFLAGS+= -fstack-protector -fPIE -fPIC -D_FORTIFY_SOURCE=2
 libgsticamerasrc_la_LIBADD = $(GST_LIBS) \
     -lgstallocators-$(GST_API_VERSION) \
     -lgstvideo-$(GST_API_VERSION) \
-    -L./interfaces/.libs/ -lgsticamerainterface \
+    interfaces/libgsticamerainterface-$(GST_API_VERSION).la \
     $(CAMHAL_LIBS)
 
 libgsticamerasrc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
