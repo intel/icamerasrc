@@ -41,33 +41,32 @@
 #  Boston, MA 02111-1307, USA.
 #
 
-lib_LTLIBRARIES = libgsticamerainterface.la
-libgsticamerainterface_la_SOURCES = gstcamera3ainterface.cpp \
-                                    gstcameraispinterface.cpp \
-                                    gstcameradewarpinginterface.cpp \
-                                    gstcamerawfovinterface.cpp
+lib_LTLIBRARIES = libgsticamerainterface-@GST_API_VERSION@.la
+libgsticamerainterface_@GST_API_VERSION@_la_SOURCES = \
+    gstcamera3ainterface.cpp \
+    gstcameraispinterface.cpp \
+    gstcameradewarpinginterface.cpp \
+    gstcamerawfovinterface.cpp
 
-libgsticamerainterface_la_CPPFLAGS = -std=c++11 \
+libgsticamerainterface_@GST_API_VERSION@_la_CPPFLAGS = -std=c++11 \
     -Wall -Werror \
     $(GST_CFLAGS) \
     $(LIBUTILS_CFLAGS) \
     $(CAMHAL_CFLAGS)
 
 if USE_CHROME_SLIM_CAMHAL
-libgsticamerainterface_la_CPPFLAGS += -DCHROME_SLIM_CAMHAL
+libgsticamerainterface_@GST_API_VERSION@_la_CPPFLAGS += -DCHROME_SLIM_CAMHAL
 endif
 
 # for hardening-check
-libgsticamerainterface_la_CPPFLAGS += -fstack-protector-all -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
+libgsticamerainterface_@GST_API_VERSION@_la_CPPFLAGS += -fstack-protector-all -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
 
-libgsticamerainterface_la_LIBADD = $(GST_LIBS) $(CAMHAL_LIBS)
+libgsticamerainterface_@GST_API_VERSION@_la_LIBADD = $(GST_LIBS) $(CAMHAL_LIBS)
 
 # for hardening-check
-libgsticamerainterface_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now
+libgsticamerainterface_@GST_API_VERSION@_la_LDFLAGS = -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now -version-info $(LT_VERSION_INFO)
 
-libgsticamerainterface_la_LIBTOOLFLAGS = --tag=disable-static
-
-libgsticamerainterfaceincludedir = $(inludedir)
+libgsticamerainterfaceincludedir = $(includedir)/gstreamer-@GST_API_VERSION@/gst/icamera
 
 libgsticamerainterfaceinclude_HEADERS = gstcamera3ainterface.h \
                                         gstcameraispinterface.h \

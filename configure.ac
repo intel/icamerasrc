@@ -45,7 +45,7 @@ dnl required version of autoconf
 AC_PREREQ([2.53])
 
 dnl TODO: fill in your package name and package version here
-AC_INIT([my-plugin-package],[1.0.0])
+AC_INIT([gst-plugins-icamera],[1.0.0])
 
 dnl required versions of gstreamer and plugins-base
 GST_REQUIRED=1.0.0
@@ -64,7 +64,14 @@ AC_PROG_CXX
 
 dnl required version of libtool
 LT_PREREQ([2.2.6])
-LT_INIT
+LT_INIT([disable-static])
+
+m4_define([lt_current], 1)
+m4_define([lt_revision], 0)
+m4_define([lt_age], 0)
+m4_define([lt_version_info], [lt_current:lt_revision:lt_age])
+LT_VERSION_INFO=lt_version_info
+AC_SUBST(LT_VERSION_INFO)
 
 dnl give error and exit if we don't have pkgconfig
 AC_CHECK_PROG(HAVE_PKGCONFIG, pkg-config, [ ], [
