@@ -24,15 +24,15 @@ This repository supports MIPI cameras through the IPU6 on Intel Tigerlake platfo
 ## Pipeline examples
 * Testpattern generator (no sensor)
 ```
-sudo gst-launch-1.0 icamerasrc device-name=tpg_ipu6 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! xvimagesink
+sudo -E gst-launch-1.0 icamerasrc device-name=tpg_ipu6 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! xvimagesink
 ```
 
 * Sensor ov01a1s
 ```
-sudo gst-launch-1.0 icamerasrc device-name=ov01a1s ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! xvimagesink
+sudo -E gst-launch-1.0 icamerasrc device-name=ov01a1s ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! xvimagesink
 ```
 
 * Sensor hm11b1
 ```
-sudo gst-launch-1.0 icamerasrc device-name=hm11b1 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! xvimagesink
+sudo -E gst-launch-1.0 icamerasrc device-name=hm11b1 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! xvimagesink
 ```
