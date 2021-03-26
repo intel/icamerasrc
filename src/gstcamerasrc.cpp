@@ -835,6 +835,11 @@ gst_camerasrc_finalize (Gstcamerasrc *camerasrc)
   delete camerasrc->isp_control_tags;
   camerasrc->isp_control_tags = NULL;
 
+  for (int i = 0; i < GST_CAMERASRC_MAX_STREAM_NUM; i++) {
+    camerasrc->streams[i].activated = FALSE;
+  }
+  camerasrc->stream_map.clear();
+
   g_cond_clear(&camerasrc->cond);
   g_mutex_clear(&camerasrc->lock);
 
@@ -2679,8 +2684,17 @@ gst_camerasrc_stop(GstCamBaseSrc *basesrc)
   Gstcamerasrc *camerasrc = GST_CAMERASRC(basesrc);
   GST_INFO("CameraId=%d.", camerasrc->device_id);
 
-  camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].activated = FALSE;
-  camerasrc->stream_map.erase(GST_CAM_BASE_SRC_PAD_NAME);
+  GST_CAMSRC_LOCK(camerasrc);
+  if (camerasrc->camera_open) {
+    camera_device_stop(camerasrc->device_id);
+    camera_device_close(camerasrc->device_id);
+    camerasrc->camera_open = false;
+  }
+  if (camerasrc->camera_init) {
+      camera_hal_deinit();
+      camerasrc->camera_init = false;
+  }
+  GST_CAMSRC_UNLOCK(camerasrc);
 
   return TRUE;
 }

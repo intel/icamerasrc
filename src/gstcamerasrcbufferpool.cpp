@@ -916,16 +916,23 @@ gst_camerasrc_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buf
 static void
 gst_camerasrc_free_weave_buffer (Gstcamerasrc *src, int stream_id)
 {
-  if (src->streams[stream_id].top->addr)
-    free(src->streams[stream_id].top->addr);
+  if (src->streams[stream_id].top) {
+    if (src->streams[stream_id].top->addr) {
+      free(src->streams[stream_id].top->addr);
+      src->streams[stream_id].top->addr = NULL;
+    }
+    free(src->streams[stream_id].top);
+    src->streams[stream_id].top = NULL;
+  }
 
-  if (src->streams[stream_id].bottom->addr)
-    free(src->streams[stream_id].bottom->addr);
-
-  free(src->streams[stream_id].top);
-  free(src->streams[stream_id].bottom);
-  src->streams[stream_id].top = NULL;
-  src->streams[stream_id].bottom = NULL;
+  if (src->streams[stream_id].bottom) {
+    if (src->streams[stream_id].bottom->addr) {
+      free(src->streams[stream_id].bottom->addr);
+      src->streams[stream_id].bottom->addr = NULL;
+    }
+    free(src->streams[stream_id].bottom);
+    src->streams[stream_id].bottom = NULL;
+  }
 }
 
 static void
@@ -1002,6 +1009,11 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
 {
   PERF_CAMERA_ATRACE();
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL(bpool);
+  if (!pool) {
+    GST_INFO("The pool is not exist");
+    return TRUE;
+  }
+
   Gstcamerasrc *camerasrc = pool->src;
   int stream_id = pool->stream_id;
   GST_INFO("CameraId=%d, StreamId=%d.", camerasrc->device_id, pool->stream_id);
@@ -1027,20 +1039,28 @@ gst_camerasrc_buffer_pool_stop(GstBufferPool *bpool)
     gst_camerasrc_free_weave_buffer(camerasrc, stream_id);
 
   /* free the remaining buffers */
-  for (int n = 0; n < pool->number_allocated; n++)
+  for (int n = 0; n < pool->number_allocated; n++) {
     gst_camerasrc_buffer_pool_free_buffer (bpool, pool->buffers[n]);
-
+  }
   pool->number_allocated = 0;
-  g_free(pool->buffers);
-  pool->buffers = NULL;
 
-  if (camerasrc->streams[stream_id].downstream_pool)
+  if (pool->buffers) {
+    g_free(pool->buffers);
+    pool->buffers = NULL;
+  }
+
+  if (camerasrc->streams[stream_id].downstream_pool) {
     gst_object_unref(camerasrc->streams[stream_id].downstream_pool);
-  else if (camerasrc->streams[stream_id].pool)
+    camerasrc->streams[stream_id].downstream_pool = NULL;
+  } else if (camerasrc->streams[stream_id].pool) {
     gst_object_unref(camerasrc->streams[stream_id].pool);
+    camerasrc->streams[stream_id].pool = NULL;
+  }
 
-  delete camerasrc->streams[stream_id].buffer_queue;
-  camerasrc->streams[stream_id].buffer_queue = NULL;
+  if (camerasrc->streams[stream_id].buffer_queue) {
+    delete camerasrc->streams[stream_id].buffer_queue;
+    camerasrc->streams[stream_id].buffer_queue = NULL;
+  }
 
   return TRUE;
 }
