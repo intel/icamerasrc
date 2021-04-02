@@ -50,7 +50,10 @@ autoreconf --verbose --force --install --make || {
  exit 1;
 }
 
-./configure || {
+args="--prefix=/usr \
+--libdir=/usr/lib"
+
+./configure $args || {
  echo 'configure failed';
  exit 1;
 }

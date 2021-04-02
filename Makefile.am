@@ -45,6 +45,9 @@ SUBDIRS = src
 
 EXTRA_DIST = autogen.sh
 
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = libgsticamerasrc.pc
+
 .PHONY: rpm
 rpm:
 	./rpm/build_rpm.sh ${BUILD_NUMBER}

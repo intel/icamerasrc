@@ -203,6 +203,7 @@ AM_CONDITIONAL([USE_CHROME_SLIM_CAMHAL], [test "x${CHROME_SLIM_CAMHAL}" = "xON"]
 AC_CONFIG_FILES([Makefile
                  src/Makefile
                  src/interfaces/Makefile
+                 libgsticamerasrc.pc
                 ])
 AC_OUTPUT
 
