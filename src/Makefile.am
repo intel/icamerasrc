@@ -83,6 +83,10 @@ if USE_CHROME_SLIM_CAMHAL
 libgsticamerasrc_la_CPPFLAGS += -DCHROME_SLIM_CAMHAL
 endif
 
+if USE_STRIP_VIRTUAL_CHANNEL_CAMHAL
+libgsticamerasrc_la_CPPFLAGS += -DSTRIP_VIRTUAL_CHANNEL_CAMHAL
+endif
+
 # for hardening-check
 libgsticamerasrc_la_CPPFLAGS+= -fstack-protector -fPIE -fPIC -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
 

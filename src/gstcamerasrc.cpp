@@ -2677,7 +2677,7 @@ gst_camerasrc_start(GstCamBaseSrc *basesrc)
     return FALSE;
   }
   camerasrc->camera_init = true;
-#ifndef CHROME_SLIM_CAMHAL
+#ifndef STRIP_VIRTUAL_CHANNEL_CAMHAL
   ret = camera_device_open(camerasrc->device_id, camerasrc->num_vc);
 #else
   ret = camera_device_open(camerasrc->device_id);
