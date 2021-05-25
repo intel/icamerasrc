@@ -152,13 +152,15 @@ void CameraSrcUtils::get_stream_info_by_caps(GstCaps *caps, const char **format,
 int CameraSrcUtils::get_stream_id_by_pad(map<string, int> streamMap, GstPad *pad)
 {
   int stream_id = -1;
+  gchar *padname = gst_pad_get_name(pad);
 
-  auto iter = streamMap.find(gst_pad_get_name(pad));
+  auto iter = streamMap.find(padname);
   if (iter != streamMap.end())
     stream_id = iter->second;
   else {
     GST_ERROR("failed to get StreamId: %d", stream_id);
   }
 
+  g_free(padname);
   return stream_id;
 }
