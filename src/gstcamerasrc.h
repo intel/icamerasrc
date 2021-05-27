@@ -54,6 +54,7 @@
 #include <queue>
 #include <vector>
 #include <set>
+#include <string>
 
 G_BEGIN_DECLS
 
