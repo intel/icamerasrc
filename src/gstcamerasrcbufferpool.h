@@ -83,6 +83,10 @@ struct _GstCamerasrcBufferPool
 
   int stream_id;
   gboolean alloc_done;
+#if GST_VERSION_MINOR >= 18
+  gboolean need_alignment;
+  GstVideoAlignment alignment;
+#endif
 };
 
 struct _GstCamerasrcBufferPoolClass

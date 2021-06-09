@@ -155,6 +155,9 @@ gst_camerasrc_buffer_pool_init (GstCamerasrcBufferPool * pool)
   pool->number_allocated = 0;
   pool->acquire_buffer_index = 0;
   pool->alloc_done = FALSE;
+#if GST_VERSION_MINOR >= 18
+  pool->need_alignment = FALSE;
+#endif
 }
 
 GstBufferPool *
@@ -162,18 +165,44 @@ gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc,
       GstCaps *caps, int stream_id)
 {
   PERF_CAMERA_ATRACE();
+#if GST_VERSION_MINOR >= 18
+  GstVideoInfo info;
+  GstVideoAlignment align;
+#endif
   GST_INFO("CameraId=%d StreamId=%d.", camerasrc->device_id, stream_id);
   int bpp = 0;
 
   GstCamerasrcBufferPool *pool = (GstCamerasrcBufferPool *) g_object_new (GST_TYPE_CAMERASRC_BUFFER_POOL, NULL);
 
-  /* Get format bpp and actual frame size from HAL */
-  int frame_size = get_frame_size(camerasrc->device_id, camerasrc->s[stream_id].format, camerasrc->s[stream_id].width,
-                   camerasrc->s[stream_id].height, camerasrc->s[stream_id].field, &bpp);
-  if (frame_size != camerasrc->s[stream_id].size) {
-      GST_WARNING("CameraId=%d, StreamId=%d, hal_frame_size:%d is not equal to stream_size:%d, will be overwriten",
-                       camerasrc->device_id, stream_id, frame_size, camerasrc->s[stream_id].size);
-      camerasrc->s[stream_id].size = frame_size;
+  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
+#if GST_VERSION_MINOR >= 18
+    if (!gst_video_info_from_caps(&info, caps)) {
+      GST_ERROR("CameraId=%d, StreamId=%d failed to get video info from caps.",
+         camerasrc->device_id, stream_id);
+      return NULL;
+    }
+    gst_camerasrc_set_video_alignment(&info, 0, 0, &align);
+    gst_video_info_align(&info, &align);
+    camerasrc->s[stream_id].size = GST_VIDEO_INFO_SIZE(&info);
+#else
+    /* Get format bpp and actual frame size from HAL */
+    int frame_size = get_frame_size(camerasrc->device_id, camerasrc->s[stream_id].format, camerasrc->s[stream_id].width,
+                     camerasrc->s[stream_id].height, camerasrc->s[stream_id].field, &bpp);
+    if (frame_size != camerasrc->s[stream_id].size) {
+        GST_WARNING("CameraId=%d, StreamId=%d, hal_frame_size:%d is not equal to stream_size:%d, will be overwriten",
+                         camerasrc->device_id, stream_id, frame_size, camerasrc->s[stream_id].size);
+        camerasrc->s[stream_id].size = frame_size;
+    }
+#endif
+  } else {
+    /* Get format bpp and actual frame size from HAL */
+    int frame_size = get_frame_size(camerasrc->device_id, camerasrc->s[stream_id].format, camerasrc->s[stream_id].width,
+                     camerasrc->s[stream_id].height, camerasrc->s[stream_id].field, &bpp);
+    if (frame_size != camerasrc->s[stream_id].size) {
+        GST_WARNING("CameraId=%d, StreamId=%d, hal_frame_size:%d is not equal to stream_size:%d, will be overwriten",
+                         camerasrc->device_id, stream_id, frame_size, camerasrc->s[stream_id].size);
+        camerasrc->s[stream_id].size = frame_size;
+    }
   }
 
   pool->src = camerasrc;
@@ -182,6 +211,13 @@ gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc,
   camerasrc->streams[stream_id].pool = GST_BUFFER_POOL(pool);
 
   GstStructure *s = gst_buffer_pool_get_config (GST_BUFFER_POOL_CAST (pool));
+
+#if GST_VERSION_MINOR >=18
+  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
+    gst_buffer_pool_config_set_video_alignment(s, &align);
+  }
+#endif
+
   gst_buffer_pool_config_set_params (s, caps, camerasrc->s[stream_id].size,
                    MIN_PROP_BUFFERCOUNT, MAX_PROP_BUFFERCOUNT);
   gst_buffer_pool_set_config (GST_BUFFER_POOL_CAST (pool), s);
@@ -206,6 +242,9 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
   GstAllocator *allocator;
   GstAllocationParams params;
   GstCaps *caps;
+#if GST_VERSION_MINOR >= 18
+  GstVideoInfo video_info;
+#endif
   guint size, min_buffers, max_buffers;
 
   // parse the config and keep around
@@ -215,6 +254,14 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
       camerasrc->device_id, pool->stream_id);
     return FALSE;
   }
+
+#if GST_VERSION_MINOR >= 18
+  if (!gst_video_info_from_caps (&video_info, caps)) {
+    GST_ERROR("CameraId=%d, StreamId=%d failed to get video info from caps.",
+      camerasrc->device_id, pool->stream_id);
+    return FALSE;
+  }
+#endif
 
   if (!gst_buffer_pool_config_get_allocator (config, &allocator, &params)) {
     GST_ERROR("CameraId=%d, StreamId=%d failed to get buffer pool allocator.",
@@ -231,6 +278,17 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
   } else {
     pool->allocator = allocator;
   }
+
+#if GST_VERSION_MINOR >= 18
+  pool->need_alignment = gst_buffer_pool_config_has_option(config,
+      GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
+  if (pool->need_alignment && camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE)
+  {
+    gst_camerasrc_set_video_alignment(&video_info, 0, 0, &pool->alignment);
+    gst_video_info_align(&video_info, &pool->alignment);
+    gst_buffer_pool_config_set_video_alignment (config, &pool->alignment);
+  }
+#endif
 
   pool->params = params;
   pool->size = size;
@@ -570,6 +628,10 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
   drm_intel_bufmgr *bufmgr;
   drm_intel_bo *drm_bo;
   Gstcamerasrc *src = pool->src;
+#if GST_VERSION_MINOR >= 18
+  GstVideoInfo info = src->streams[pool->stream_id].info;
+#endif
+
   GST_DEBUG("CameraId=%d, StreamId=%d allocate DMA mode buffer.",
     src->device_id, pool->stream_id);
 
@@ -589,6 +651,11 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
 
   bufmgr = drm_intel_bufmgr_gem_init(intel_fd, 4096);
 
+#if GST_VERSION_MINOR >= 18
+  size = GST_VIDEO_INFO_SIZE(&info);
+  if (size < 0)
+    goto err_get_size;
+#else
   int format = src->s[pool->stream_id].format;
 
   if (format == V4L2_PIX_FMT_NV12 || format == V4L2_PIX_FMT_NV21) {
@@ -598,6 +665,7 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
   } else {
     size = (ALIGN(src->s[pool->stream_id].width, 16)) * (ALIGN(src->s[pool->stream_id].height, 32)) * 2;
   }
+#endif
 
   drm_bo = drm_intel_bo_alloc(bufmgr, "DRM_BO", size, 4096);
 
@@ -627,6 +695,17 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
 
   return GST_FLOW_OK;
 
+#if GST_VERSION_MINOR >= 18
+err_get_size:
+  {
+    GST_ERROR("CameraId=%d, StreamId=%d failed to get DMA mode buffer size.",
+      src->device_id, pool->stream_id);
+
+    close(intel_fd);
+    gst_buffer_unref (*alloc_buffer);
+    return GST_FLOW_ERROR;
+  }
+#endif
 err_get_fd:
   {
     GST_ERROR("CameraId=%d, StreamId=%d failed to get fd of DMA mode buffer.",

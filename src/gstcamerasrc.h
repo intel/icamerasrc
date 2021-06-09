@@ -532,6 +532,10 @@ struct _GstcamerasrcClass
   GstCamPushSrcClass parent_class;
 };
 
+#if GST_VERSION_MINOR >= 18
+void gst_camerasrc_set_video_alignment(GstVideoInfo *info, guint alloc_w, guint alloc_h, GstVideoAlignment *alignment);
+#endif
+
 GType gst_camerasrc_get_type (void);
 
 G_END_DECLS

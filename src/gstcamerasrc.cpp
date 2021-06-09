@@ -2386,6 +2386,12 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc,
                             fourcc, info.width, info.height, camerasrc->interlace_field);
 
   if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
+#if GST_VERSION_MINOR >= 18
+    GstVideoAlignment align;
+    gst_camerasrc_set_video_alignment(&info, 0, 0, &align);
+    gst_video_info_align (&info, &align);
+    camerasrc->s[stream_id].size = GST_VIDEO_INFO_SIZE(&info);
+#else
     int width = ALIGN(camerasrc->s[stream_id].width, 16);
     int height = ALIGN(camerasrc->s[stream_id].height, 32);
     int format = camerasrc->s[stream_id].format;
@@ -2396,6 +2402,7 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc,
     } else {
       camerasrc->s[stream_id].size = width * height * 2;
     }
+#endif
   }
 
   if (!ret) {
@@ -3997,6 +4004,40 @@ static gboolean gst_camerasrc_get_camera_rotation(GstCamerasrcWFOV *camWFOV, cam
   return (ret == 0 ? TRUE : FALSE);
 }
 #endif //CHROME_SLIM_CAMHAL
+
+#if GST_VERSION_MINOR >= 18
+void gst_camerasrc_set_video_alignment(GstVideoInfo *info, guint alloc_w, guint alloc_h, GstVideoAlignment *alignment)
+{
+  guint i, width, height;
+  guint stride_align = 127;     /* 128-byte alignment */
+
+  width = GST_VIDEO_INFO_WIDTH (info);
+  height = GST_VIDEO_INFO_HEIGHT (info);
+
+  g_assert (alloc_w == 0 || alloc_w >= width);
+  g_assert (alloc_h == 0 || alloc_h >= height);
+
+  if (alloc_w == 0)
+    alloc_w = width;
+
+  if (alloc_h == 0)
+    alloc_h = height;
+
+  /* PitchAlignment is set to 64 bytes in the media driver for the following formats */
+  if (GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_BGRA ||
+      GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_BGRx ||
+      GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_BGR10A2_LE ||
+      GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_RGB16)
+    stride_align = 63;          /* 64-byte alignment */
+
+  gst_video_alignment_reset (alignment);
+  for (i = 0; i < GST_VIDEO_INFO_N_PLANES (info); i++)
+    alignment->stride_align[i] = stride_align;
+
+  alignment->padding_right = GST_ROUND_UP_16 (alloc_w) - width;
+  alignment->padding_bottom = GST_ROUND_UP_32 (alloc_h) - height;
+}
+#endif
 
 /* entry point to initialize the plug-in
  * initialize the plug-in itself
