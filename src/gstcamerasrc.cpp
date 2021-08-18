@@ -351,6 +351,8 @@ gst_camerasrc_io_mode_get_type(void)
         "DMA export", "dma"},
     {GST_CAMERASRC_IO_MODE_DMA_IMPORT,
         "DMA import", "dma_import"},
+    {GST_CAMERASRC_IO_MODE_DMA_MODE,
+        "DMA import", "dma_mode"},
     {0, NULL, NULL},
   };
 
@@ -2382,6 +2384,20 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc,
 
   int ret = gst_camerasrc_find_match_stream(camerasrc, stream_id,
                             fourcc, info.width, info.height, camerasrc->interlace_field);
+
+  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
+    int width = ALIGN(camerasrc->s[stream_id].width, 16);
+    int height = ALIGN(camerasrc->s[stream_id].height, 32);
+    int format = camerasrc->s[stream_id].format;
+    if (format == V4L2_PIX_FMT_NV12 || format == V4L2_PIX_FMT_NV21) {
+      camerasrc->s[stream_id].size = width * height * 3 / 2;
+    } else if (format == V4L2_PIX_FMT_YUV420 || format == V4L2_PIX_FMT_YVU420) {
+      camerasrc->s[stream_id].size = width * height * 2;
+    } else {
+      camerasrc->s[stream_id].size = width * height * 2;
+    }
+  }
+
   if (!ret) {
     GST_ERROR("CameraId=%d, StreamId=%d no match stream found from HAL",
       camerasrc->device_id, stream_id);
@@ -2414,6 +2430,9 @@ gst_camerasrc_set_memtype(Gstcamerasrc* camerasrc, int stream_id)
           camerasrc->s[stream_id].memType = V4L2_MEMORY_USERPTR;
           break;
     case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
+          camerasrc->s[stream_id].memType = V4L2_MEMORY_DMABUF;
+          break;
+    case GST_CAMERASRC_IO_MODE_DMA_MODE:
           camerasrc->s[stream_id].memType = V4L2_MEMORY_DMABUF;
           break;
     case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
@@ -2806,6 +2825,7 @@ gst_camerasrc_decide_allocation(GstCamBaseSrc *bsrc,GstQuery *query, GstPad *pad
   GstStructure *config = NULL, *down_config = NULL;
   guint size = 0, min = 0, max = 0;
   gboolean update;
+  gboolean active;
   const char* GST_MSDK_SELECT="gstMsdkSelect";
 
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
@@ -2813,6 +2833,7 @@ gst_camerasrc_decide_allocation(GstCamBaseSrc *bsrc,GstQuery *query, GstPad *pad
     return FALSE;
   GST_INFO("CameraId=%d, StreamId=%d.", camerasrc->device_id, stream_id);
 
+  active = gst_buffer_pool_is_active(GST_BUFFER_POOL_CAST(camerasrc->streams[stream_id].pool));
   memset(&params, 0, sizeof(GstAllocationParams));
   gst_cam_base_src_get_allocator (bsrc, &allocator, &params);
 
@@ -2820,24 +2841,43 @@ gst_camerasrc_decide_allocation(GstCamBaseSrc *bsrc,GstQuery *query, GstPad *pad
     case GST_CAMERASRC_IO_MODE_USERPTR:
     case GST_CAMERASRC_IO_MODE_MMAP:
     case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
+    case GST_CAMERASRC_IO_MODE_DMA_MODE:
     {
         if(gst_query_get_n_allocation_pools(query)>0){
-          gst_query_parse_nth_allocation_pool(query,0,&pool,&size,&min,&max);
-          update=TRUE;
+          if (!active) {
+            gst_query_parse_nth_allocation_pool(query,0,&pool,&size,&min,&max);
+            update=TRUE;
+            gst_object_unref(pool);
+          }
         } else {
           pool = NULL;
           max=min=0;
           size = 0;
           update = FALSE;
         }
+
         pool = GST_BUFFER_POOL_CAST(camerasrc->streams[stream_id].pool);
         size = (GST_CAMERASRC_BUFFER_POOL(camerasrc->streams[stream_id].pool))->size;
 
-        if (update)
-          gst_query_set_nth_allocation_pool (query, 0, pool, size, camerasrc->number_of_buffers, MAX_PROP_BUFFERCOUNT);
-        else
-          gst_query_add_allocation_pool (query, pool, size, camerasrc->number_of_buffers, MAX_PROP_BUFFERCOUNT);
-      break;
+        if (active) {
+          /* Trick camBaseSrc to allocate differently when pool is active */
+          if (gst_query_get_n_allocation_params (query))
+            gst_query_set_nth_allocation_param (query, 0, allocator, &params);
+          else
+            gst_query_add_allocation_param (query, allocator, &params);
+
+          if (gst_query_get_n_allocation_pools (query))
+            gst_query_set_nth_allocation_pool (query, 0, pool, size, 1, 0);
+          else
+            gst_query_add_allocation_pool (query, pool, size, 1, 0);
+          }
+          else {
+            if (update)
+              gst_query_set_nth_allocation_pool (query, 0, pool, size, camerasrc->number_of_buffers, MAX_PROP_BUFFERCOUNT);
+            else
+              gst_query_add_allocation_pool (query, pool, size, camerasrc->number_of_buffers, MAX_PROP_BUFFERCOUNT);
+          }
+        break;
     }
     case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
     {

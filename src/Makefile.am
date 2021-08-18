@@ -72,6 +72,7 @@ libgsticamerasrc_la_SOURCES = gstcamerasrc.cpp \
 libgsticamerasrc_la_CPPFLAGS = \
     $(GST_CFLAGS) \
     $(CAMHAL_CFLAGS) \
+    $(LIBDRM_CFLAGS) \
     -std=c++11 \
     -Werror \
     $(LIBUTILS_CFLAGS) \
@@ -89,6 +90,7 @@ libgsticamerasrc_la_LIBADD = $(GST_LIBS) \
     -lgstallocators-$(GST_API_VERSION) \
     -lgstvideo-$(GST_API_VERSION) \
     interfaces/libgsticamerainterface-$(GST_API_VERSION).la \
+    $(LIBDRM_LIBS) \
     $(CAMHAL_LIBS)
 
 libgsticamerasrc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)

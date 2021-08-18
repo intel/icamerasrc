@@ -52,6 +52,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <fcntl.h>
 #include "gst/allocators/gstdmabuf.h"
 #include "gst/video/video.h"
 #include "gst/video/gstvideometa.h"
@@ -67,6 +68,9 @@
 #include <time.h>
 #include <queue>
 #include "utils.h"
+
+#include "libdrm/intel_bufmgr.h"
+#include "xf86drm.h"
 
 using namespace icamera;
 using std::queue;
@@ -222,7 +226,7 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
     gst_object_unref (pool->allocator);
   pool->allocator = NULL;
 
-  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_EXPORT) {
+  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_EXPORT || camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
     pool->allocator = gst_dmabuf_allocator_new ();
   } else {
     pool->allocator = allocator;
@@ -556,6 +560,93 @@ gst_camerasrc_alloc_dma_import(GstCamerasrcBufferPool *pool,
   }
 }
 
+static int
+gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
+      GstBuffer **alloc_buffer, GstCamerasrcMeta **meta)
+{
+  int dmafd = -1;
+  int intel_fd = -1;
+  int size = 0;
+  drm_intel_bufmgr *bufmgr;
+  drm_intel_bo *drm_bo;
+  Gstcamerasrc *src = pool->src;
+  GST_DEBUG("CameraId=%d, StreamId=%d allocate DMA mode buffer.",
+    src->device_id, pool->stream_id);
+
+  GstMemory *mem = NULL;
+  *alloc_buffer = gst_buffer_new();
+  *meta = GST_CAMERASRC_META_ADD(*alloc_buffer);
+  (*meta)->buffer = (camera_buffer_t *)calloc(1, sizeof(camera_buffer_t));
+  if ((*meta)->buffer == NULL)
+    return GST_FLOW_ERROR;
+
+  intel_fd = open("/dev/dri/renderD128", O_RDWR);
+
+  if (intel_fd < 0) {
+    close(intel_fd);
+    return GST_FLOW_ERROR;
+  }
+
+  bufmgr = drm_intel_bufmgr_gem_init(intel_fd, 4096);
+
+  int format = src->s[pool->stream_id].format;
+
+  if (format == V4L2_PIX_FMT_NV12 || format == V4L2_PIX_FMT_NV21) {
+    size = (ALIGN(src->s[pool->stream_id].width, 16)) * (ALIGN(src->s[pool->stream_id].height, 32)) * 3 / 2;
+  } else if (format == V4L2_PIX_FMT_YUV420 || format == V4L2_PIX_FMT_YVU420) {
+    size = (ALIGN(src->s[pool->stream_id].width, 16)) * (ALIGN(src->s[pool->stream_id].height, 32)) * 2;
+  } else {
+    size = (ALIGN(src->s[pool->stream_id].width, 16)) * (ALIGN(src->s[pool->stream_id].height, 32)) * 2;
+  }
+
+  drm_bo = drm_intel_bo_alloc(bufmgr, "DRM_BO", size, 4096);
+
+  drm_intel_bo_gem_export_to_prime(drm_bo, &dmafd);
+
+  if (dmafd < 0)
+    goto err_get_fd;
+
+  (*meta)->buffer->dmafd = dmafd;
+
+  GST_DEBUG("CameraId=%d, StreamId=%d DMA import buffer fd=%d.",
+    src->device_id, pool->stream_id, (*meta)->buffer->dmafd);
+
+  (*meta)->buffer->s = src->s[pool->stream_id];
+  (*meta)->buffer->s.memType = V4L2_MEMORY_DMABUF;
+  (*meta)->buffer->flags = BUFFER_FLAG_DMA_EXPORT;
+
+  mem = gst_dmabuf_allocator_alloc (pool->allocator, dmafd, pool->size);
+
+  gst_buffer_append_memory (*alloc_buffer, mem);
+  if (!gst_camerasrc_is_dma_buffer(*alloc_buffer))
+    goto err_not_dmabuf;
+
+  close(intel_fd);
+  drm_intel_bufmgr_destroy(bufmgr);
+  drm_intel_bo_unreference(drm_bo);
+
+  return GST_FLOW_OK;
+
+err_get_fd:
+  {
+    GST_ERROR("CameraId=%d, StreamId=%d failed to get fd of DMA mode buffer.",
+      src->device_id, pool->stream_id);
+
+    close(intel_fd);
+    gst_buffer_unref (*alloc_buffer);
+    return GST_FLOW_ERROR;
+  }
+err_not_dmabuf:
+  {
+    GST_ERROR("CameraId=%d, StreamId=%d not a dma buffer.",
+      src->device_id, pool->stream_id);
+
+    close(intel_fd);
+    gst_buffer_unref (*alloc_buffer);
+    return GST_FLOW_ERROR;
+  }
+}
+
 static void
 gst_camerasrc_set_meta(GstCamerasrcBufferPool *pool, GstBuffer *alloc_buffer)
 {
@@ -627,6 +718,10 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
       break;
     case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
       if (gst_camerasrc_alloc_dma_import(pool, &alloc_buffer, &meta) < 0)
+        goto err_alloc_buffer;
+      break;
+    case GST_CAMERASRC_IO_MODE_DMA_MODE:
+      if (gst_camerasrc_alloc_dma_mode(pool, &alloc_buffer, &meta) < 0)
         goto err_alloc_buffer;
       break;
     default:
@@ -956,6 +1051,7 @@ gst_camerasrc_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer
       break;
     case GST_CAMERASRC_IO_MODE_DMA_EXPORT:
     case GST_CAMERASRC_IO_MODE_DMA_IMPORT:
+    case GST_CAMERASRC_IO_MODE_DMA_MODE:
       if (meta->buffer->dmafd >= 0)
         close(meta->buffer->dmafd);
       break;

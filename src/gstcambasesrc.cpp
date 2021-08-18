@@ -3561,7 +3561,6 @@ gst_cam_base_src_prepare_allocation (GstCamBaseSrc * basesrc, GstCaps * caps, Gs
   gst_query_unref (query);
 
   g_free (padname);
-
   return result;
 
   /* Errors */
@@ -3586,6 +3585,14 @@ gst_cam_base_src_default_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
   GstCaps *caps = NULL;
   GstCaps *peercaps = NULL;
   gboolean result = FALSE;
+  GstCaps *current_caps = NULL;
+
+    current_caps = gst_pad_get_current_caps (pad);
+
+  if (current_caps){
+        GST_DEBUG_OBJECT (basesrc, "straight return without negotiate");
+          return TRUE;
+  }
 
   /* first see what is possible on our source pad */
   thiscaps = gst_pad_query_caps (pad, NULL);

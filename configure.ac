@@ -173,6 +173,13 @@ PKG_CHECK_MODULES(CAMHAL, [libcamhal], [
   AC_MSG_ERROR([Cannot find libcamhal pkgconfig])
 ])
 
+PKG_CHECK_MODULES(LIBDRM, [libdrm libdrm_intel], [
+  AC_SUBST(LIBDRM_CFLAGS)
+  AC_SUBST(LIBDRM_LIBS)
+], [
+  AC_MSG_ERROR([Cannot find libdrm pkgconfig])
+])
+
 dnl check if compiler understands -Wall (if yes, add -Wall to GST_CFLAGS)
 AC_MSG_CHECKING([to see if compiler understands -Wall])
 save_CFLAGS="$CFLAGS"
