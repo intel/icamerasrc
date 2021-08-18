@@ -151,7 +151,7 @@ create_structure (guint32 fourcc)
             "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_BGRx), (void *)NULL);
     }
     break;
-    case V4L2_PIX_FMT_P010_BE:{
+    case V4L2_PIX_FMT_P010:{
       structure = gst_structure_new ("video/x-raw",
             "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_P010_10BE), (void *)NULL);
     }
