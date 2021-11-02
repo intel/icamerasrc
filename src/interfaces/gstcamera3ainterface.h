@@ -201,6 +201,15 @@ struct _GstCamerasrc3AInterface {
   */
   gboolean      (*set_af_mode)      (GstCamerasrc3A *cam3a, camera_af_mode_t afMode);
 
+  /* Set AF trigger
+  * param[in]        cam3a    Camera Source handle
+  * param[in]        afTrigger     AF_TRIGGER_IDLE,
+  *                                AF_TRIGGER_START,
+  *                                AF_TRIGGER_CANCEL,
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*set_af_trigger)   (GstCamerasrc3A *cam3a, camera_af_trigger_t afTrigger);
+
   /* Set weight grid mode
   * param[in]        cam3a    Camera Source handle
   * param[in]        weightGridMode        WEIGHT_GRID_AUTO(default),

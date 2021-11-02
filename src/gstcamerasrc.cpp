@@ -112,6 +112,7 @@ enum
   PROP_GAIN,
   PROP_AE_MODE,
   PROP_AF_MODE,
+  PROP_AF_TRIGGER,
   PROP_WEIGHT_GRID_MODE,
   PROP_AE_REGION,
   PROP_EXPOSURE_TIME_RANGE,
@@ -226,6 +227,8 @@ static gboolean gst_camerasrc_set_ae_mode (GstCamerasrc3A *cam3a,
     camera_ae_mode_t aeMode);
 static gboolean gst_camerasrc_set_af_mode (GstCamerasrc3A *cam3a,
     camera_af_mode_t afMode);
+static gboolean gst_camerasrc_set_af_trigger (GstCamerasrc3A *cam3a,
+    camera_af_trigger_t afTrigger);
 static gboolean gst_camerasrc_set_weight_grid_mode (GstCamerasrc3A *cam3a,
     camera_weight_grid_mode_t weightGridMode);
 static gboolean gst_camerasrc_set_ae_converge_speed (GstCamerasrc3A *cam3a,
@@ -646,6 +649,28 @@ gst_camerasrc_af_mode_get_type(void)
 }
 
 static GType
+gst_camerasrc_af_trigger_get_type(void)
+{
+  PERF_CAMERA_ATRACE();
+  static GType af_trigger_type = 0;
+
+  static const GEnumValue method_types[] = {
+    {GST_CAMERASRC_AF_TRIGGER_IDLE,
+          "Idle", "idle"},
+    {GST_CAMERASRC_AF_TRIGGER_START,
+          "Start", "start"},
+    {GST_CAMERASRC_AF_TRIGGER_CANCEL,
+          "Cancel", "cancel"},
+    {0, NULL, NULL},
+   };
+
+  if (!af_trigger_type) {
+    af_trigger_type = g_enum_register_static ("GstCamerasrcAfTrigger", method_types);
+  }
+  return af_trigger_type;
+}
+
+static GType
 gst_camerasrc_weight_grid_mode_get_type(void)
 {
   PERF_CAMERA_ATRACE();
@@ -1031,6 +1056,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_enum ("af-mode", "AF mode", "AF mode",
           gst_camerasrc_af_mode_get_type(), DEFAULT_PROP_AF_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_AF_TRIGGER,
+      g_param_spec_enum ("af-trigger", "AF trigger for AF AUTO mode", "AF trigger for AF AUTO mode",
+          gst_camerasrc_af_trigger_get_type(), DEFAULT_PROP_AF_TRIGGER, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_WEIGHT_GRID_MODE,
       g_param_spec_enum ("weight-grid-mode", "Weight Grid Mode", "Weight Grid Mode",
           gst_camerasrc_weight_grid_mode_get_type(), DEFAULT_PROP_WEIGHT_GRID_MODE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -1288,6 +1317,7 @@ gst_camerasrc_3a_interface_init (GstCamerasrc3AInterface *iface)
   iface->set_scene_mode = gst_camerasrc_set_scene_mode;
   iface->set_ae_mode = gst_camerasrc_set_ae_mode;
   iface->set_af_mode = gst_camerasrc_set_af_mode;
+  iface->set_af_trigger = gst_camerasrc_set_af_trigger;
   iface->set_weight_grid_mode = gst_camerasrc_set_weight_grid_mode;
   iface->set_ae_converge_speed = gst_camerasrc_set_ae_converge_speed;
   iface->set_awb_converge_speed = gst_camerasrc_set_awb_converge_speed;
@@ -1972,6 +2002,10 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
 
       src->param->setAfMode((camera_af_mode_t)src->man_ctl.af_mode);
       break;
+    case PROP_AF_TRIGGER:
+      src->param->setAfTrigger((camera_af_trigger_t)g_value_get_enum(value));
+      src->man_ctl.af_trigger = g_value_get_enum(value);
+      break;
     case PROP_WEIGHT_GRID_MODE:
       src->param->setWeightGridMode((camera_weight_grid_mode_t)g_value_get_enum(value));
       src->man_ctl.weight_grid_mode = g_value_get_enum(value);
@@ -2234,6 +2268,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_AF_MODE:
       g_value_set_enum (value, src->man_ctl.af_mode);
+      break;
+    case PROP_AF_TRIGGER:
+      g_value_set_enum (value, src->man_ctl.af_trigger);
       break;
     case PROP_WEIGHT_GRID_MODE:
       g_value_set_enum (value, src->man_ctl.weight_grid_mode);
@@ -3342,6 +3379,25 @@ gst_camerasrc_set_af_mode (GstCamerasrc3A *cam3a,
 
   camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
   g_message("Interface Called: @%s, af mode=%d.", __func__, (int)afMode);
+
+  return TRUE;
+}
+
+/* Set AF trigger
+* param[in]        cam3a    Camera Source handle
+* param[in]        afTrigger     AF_TRIGGER_IDLE,
+*                                AF_TRIGGER_START,
+*                                AF_TRIGGER_CANCEL
+* return 0 if set successfully, otherwise non-0 value is returned
+*/
+static gboolean
+gst_camerasrc_set_af_trigger (GstCamerasrc3A *cam3a,
+    camera_af_trigger_t afTrigger)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  camerasrc->param->setAfTrigger(afTrigger);
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s, af trigger=%d.", __func__, (int)afTrigger);
 
   return TRUE;
 }

@@ -110,6 +110,8 @@ using namespace std;
 #define DEFAULT_PROP_AE_MODE GST_CAMERASRC_AE_MODE_AUTO
 /* Default value of enum type property 'af-mode':auto */
 #define DEFAULT_PROP_AF_MODE GST_CAMERASRC_AF_MODE_AUTO
+/* Default value of enum type property 'af-trigger':idle */
+#define DEFAULT_PROP_AF_TRIGGER GST_CAMERASRC_AF_TRIGGER_IDLE
 /* Default value of enum type property 'weight-grid-mode':auto */
 #define DEFAULT_PROP_WEIGHT_GRID_MODE GST_CAMERASRC_WEIGHT_GRID_MODE_AUTO
 /* Default value of enum type property 'ae-converge-speed':normal */
@@ -234,6 +236,13 @@ typedef enum
   GST_CAMERASRC_AF_MODE_AUTO = 1,
   GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO = 2,
 } GstCamerasrcAfMode;
+
+typedef enum
+{
+  GST_CAMERASRC_AF_TRIGGER_IDLE = 0,
+  GST_CAMERASRC_AF_TRIGGER_START = 1,
+  GST_CAMERASRC_AF_TRIGGER_CANCEL = 2,
+} GstCamerasrcAfTrigger;
 
 typedef enum
 {
@@ -390,6 +399,7 @@ struct _Gst3AManualControl
   gfloat gain;
   int ae_mode;
   int af_mode;
+  int af_trigger;
   int weight_grid_mode;
   char ae_region[128];
   int converge_speed;
