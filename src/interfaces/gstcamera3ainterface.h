@@ -216,6 +216,17 @@ struct _GstCamerasrc3AInterface {
   */
   gboolean      (*get_af_mode)      (GstCamerasrc3A *cam3a, GstCamerasrcAfMode& afMode);
 
+  /* Get AF state
+  * param[in]        cam3a    Camera Source handle
+  * param[out]       afState       AF_STATE_IDLE,
+  *                                AF_STATE_LOCAL_SEARCH,
+  *                                AF_STATE_EXTENDED_SEARCH,
+  *                                AF_STATE_SUCCESS,
+  *                                AF_STATE_FAIL
+  * return value is current af state.
+  */
+  int           (*get_af_state)     (GstCamerasrc3A *cam3a, camera_af_state_t& afState);
+
   /* Set AF trigger
   * param[in]        cam3a    Camera Source handle
   * param[in]        afTrigger     AF_TRIGGER_IDLE,
@@ -224,6 +235,22 @@ struct _GstCamerasrc3AInterface {
   * return 0 if set successfully, otherwise non-0 value is returned
   */
   gboolean      (*set_af_trigger)   (GstCamerasrc3A *cam3a, camera_af_trigger_t afTrigger);
+
+  /* Set Fixed Focus Distance
+  * param[in]        cam3a     Camera Source handle
+  * param[in]        mm_num    The distance(millmeter number) to lens that user want to focus to
+  *
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*set_af_ff_distance)   (GstCamerasrc3A *cam3a, int mm_num);
+
+  /* Get Fixed Focus Distance
+  * param[in]        cam3a    Camera Source handle
+  * param[out]       mm_num   The current focus distance(millmeter number) to lens
+  *
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*get_af_ff_distance)   (GstCamerasrc3A *cam3a, int& mm_num);
 
   /* Set weight grid mode
   * param[in]        cam3a    Camera Source handle

@@ -89,6 +89,9 @@ using namespace std;
 #define MIN_PROP_CROP_Y 0
 #define MAX_PROP_CROP_X 1920
 #define MAX_PROP_CROP_Y 1080
+#define MAX_PROP_AF_FF_DISTANCE 5000 /* in mm */
+#define MIN_PROP_AF_FF_DISTANCE 100
+#define DEFAULT_PROP_AF_FF_DISTANCE MAX_PROP_AF_FF_DISTANCE
 
 /* Default value of enum type property 'io-mode':userptr */
 #define DEFAULT_PROP_IO_MODE GST_CAMERASRC_IO_MODE_USERPTR
@@ -393,6 +396,7 @@ struct _Gst3AManualControl
   int ae_mode;
   int af_mode;
   int af_trigger;
+  int af_ff_distance;
   int weight_grid_mode;
   char ae_region[128];
   int converge_speed;
