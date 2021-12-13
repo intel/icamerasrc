@@ -49,6 +49,7 @@
 #  include <config.h>
 #endif
 
+#include <math.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -3554,7 +3555,7 @@ gst_camerasrc_get_af_ff_distance (GstCamerasrc3A *cam3a,
       g_message("Interface Called: @%s, focus distance was not set.", __func__);
       return FALSE;
   }
-  mm_num = (int)(1000.f / (diopter + 1e-10));
+  mm_num = roundf(1000.f / (diopter + 1e-10));
   g_message("Interface Called: @%s, focus distance=%d(mm).", __func__, mm_num);
 
   return TRUE;
