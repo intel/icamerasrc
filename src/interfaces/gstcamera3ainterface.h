@@ -73,6 +73,12 @@ GST_DEBUG_CATEGORY_EXTERN(gst_camerasrc_debug);
    */
 typedef struct _GstCamerasrc3A GstCamerasrc3A;
 typedef struct _GstCamerasrc3AInterface GstCamerasrc3AInterface;
+typedef enum
+{
+  GST_CAMERASRC_AF_MODE_OFF = 0,
+  GST_CAMERASRC_AF_MODE_AUTO = 1,
+  GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO = 2,
+} GstCamerasrcAfMode;
 
 struct _GstCamerasrc3AInterface {
   /* Inherent from GTypeInterface */
@@ -194,12 +200,21 @@ struct _GstCamerasrc3AInterface {
 
   /* Set AF mode
   * param[in]        cam3a    Camera Source handle
-  * param[in]        afMode        AF_MODE_OFF,
-  *                                AF_MODE_AUTO,
-  *                                AF_MODE_CONTINUOUS_VIDEO,
+  * param[in]        afMode   GST_CAMERASRC_AF_MODE_OFF = 0,
+  *                           GST_CAMERASRC_AF_MODE_AUTO = 1,
+  *                           GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO = 2,
   * return 0 if set successfully, otherwise non-0 value is returned
   */
-  gboolean      (*set_af_mode)      (GstCamerasrc3A *cam3a, camera_af_mode_t afMode);
+  gboolean      (*set_af_mode)      (GstCamerasrc3A *cam3a, GstCamerasrcAfMode afMode);
+
+  /* Get AF mode
+  * param[in]        cam3a    Camera Source handle
+  * param[out]       afMode   GST_CAMERASRC_AF_MODE_OFF = 0,
+  *                           GST_CAMERASRC_AF_MODE_AUTO = 1,
+  *                           GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO = 2,
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*get_af_mode)      (GstCamerasrc3A *cam3a, GstCamerasrcAfMode& afMode);
 
   /* Set AF trigger
   * param[in]        cam3a    Camera Source handle

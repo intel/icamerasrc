@@ -226,7 +226,9 @@ static gboolean gst_camerasrc_set_scene_mode (GstCamerasrc3A *cam3a,
 static gboolean gst_camerasrc_set_ae_mode (GstCamerasrc3A *cam3a,
     camera_ae_mode_t aeMode);
 static gboolean gst_camerasrc_set_af_mode (GstCamerasrc3A *cam3a,
-    camera_af_mode_t afMode);
+    GstCamerasrcAfMode afMode);
+static gboolean gst_camerasrc_get_af_mode (GstCamerasrc3A *cam3a,
+    GstCamerasrcAfMode& afMode);
 static gboolean gst_camerasrc_set_af_trigger (GstCamerasrc3A *cam3a,
     camera_af_trigger_t afTrigger);
 static gboolean gst_camerasrc_set_weight_grid_mode (GstCamerasrc3A *cam3a,
@@ -1317,6 +1319,7 @@ gst_camerasrc_3a_interface_init (GstCamerasrc3AInterface *iface)
   iface->set_scene_mode = gst_camerasrc_set_scene_mode;
   iface->set_ae_mode = gst_camerasrc_set_ae_mode;
   iface->set_af_mode = gst_camerasrc_set_af_mode;
+  iface->get_af_mode = gst_camerasrc_get_af_mode;
   iface->set_af_trigger = gst_camerasrc_set_af_trigger;
   iface->set_weight_grid_mode = gst_camerasrc_set_weight_grid_mode;
   iface->set_ae_converge_speed = gst_camerasrc_set_ae_converge_speed;
@@ -3359,25 +3362,65 @@ gst_camerasrc_set_ae_mode (GstCamerasrc3A *cam3a,
 
 /* Set AF mode
 * param[in]        cam3a    Camera Source handle
-* param[in]        afMode        AF_MODE_AUTO,
-*                                AF_MODE_CONTINUOUS_VIDEO,
-*                                AF_MODE_MANUAL
+* param[in]        afMode   GST_CAMERASRC_AF_MODE_OFF = 0,
+*                           GST_CAMERASRC_AF_MODE_AUTO = 1,
+*                           GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO = 2,
+*
 * return 0 if set successfully, otherwise non-0 value is returned
 */
 static gboolean
 gst_camerasrc_set_af_mode (GstCamerasrc3A *cam3a,
-    camera_af_mode_t afMode)
+    GstCamerasrcAfMode afMode)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
-  if (afMode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO) {
-      camerasrc->param->setAfMode(AF_MODE_CONTINUOUS_VIDEO);
-  } else if (afMode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_OFF) {
-      camerasrc->param->setAfMode(AF_MODE_OFF);
-  } else if (afMode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_AUTO) {
-      camerasrc->param->setAfMode(AF_MODE_AUTO);
-  } 
-
+  int ret = 1;
+  if (afMode == GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO) {
+      ret = camerasrc->param->setAfMode(AF_MODE_CONTINUOUS_VIDEO);
+  } else if (afMode == GST_CAMERASRC_AF_MODE_OFF) {
+      ret = camerasrc->param->setAfMode(AF_MODE_OFF);
+  } else if (afMode == GST_CAMERASRC_AF_MODE_AUTO) {
+      ret = camerasrc->param->setAfMode(AF_MODE_AUTO);
+  }
+  if (ret != 0){
+      g_message("Interface Called: @%s, failed to setAfMode to underlying layer.", __func__);
+      return FALSE;
+  }
   camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s, af mode=%d.", __func__, (int)afMode);
+
+  return TRUE;
+}
+
+/* Get AF mode
+* param[in]        cam3a    Camera Source handle
+* param[out]       afMode   GST_CAMERASRC_AF_MODE_OFF = 0,
+*                           GST_CAMERASRC_AF_MODE_AUTO = 1,
+*                           GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO = 2,
+*
+* return TRUE if get successfully, otherwise FALSE value is returned
+*/
+static gboolean
+gst_camerasrc_get_af_mode (GstCamerasrc3A *cam3a,
+    GstCamerasrcAfMode& afMode)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  camera_af_mode_t m;
+  int ret = camerasrc->param->getAfMode(m);
+  if(ret != 0){
+      g_message("Interface Called: @%s, Af mode was not set, return mode UNKNOWN:%d.",__func__, (int)afMode);
+      return FALSE;
+  }
+  if (m == AF_MODE_CONTINUOUS_VIDEO ) {
+      afMode = GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO;
+  } else if (m == AF_MODE_OFF) {
+      afMode = GST_CAMERASRC_AF_MODE_OFF;
+  } else if (m == AF_MODE_AUTO ) {
+      afMode = GST_CAMERASRC_AF_MODE_AUTO;
+  } else {
+      g_message("Interface Called: @%s, unrecognized AF_MODE: %d, fallback to %d.",__func__, (int)m, (int)afMode);
+      return FALSE;
+  }
+
   g_message("Interface Called: @%s, af mode=%d.", __func__, (int)afMode);
 
   return TRUE;
