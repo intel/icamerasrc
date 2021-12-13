@@ -67,6 +67,7 @@ cp -v %{_srcdir}/src/interfaces/.libs/*.so* %{buildroot}/usr/lib/
 cp -v %{_srcdir}/src/interfaces/.libs/*.la %{buildroot}/usr/lib/
 cp -v %{_srcdir}/src/interfaces/*.h %{buildroot}/usr/include/icamerasrc/interfaces
 cp -v %{_srcdir}/src/interfaces/*.h %{buildroot}/usr/include/gstreamer-1.0/gst
+cp -v %{_srcdir}/src/gst/gstcamerasrcmeta.h %{buildroot}/usr/include/gstreamer-1.0/gst
 
 %files
 /usr/lib/gstreamer-1.0

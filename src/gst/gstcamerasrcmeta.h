@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2021 Intel Corporation
+ * Copyright (C) 2021 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -41,64 +41,29 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GST_CAMERASRC_BUFFER_POOL_H__
-#define __GST_CAMERASRC_BUFFER_POOL_H__
+#ifndef GST_CAMERASRC_META_H
+#define GST_CAMERASRC_META_H
 
 #include <gst/gst.h>
-#include <gst/gstcamerasrcmeta.h>
-#include "gstcampushsrc.h"
-#include "gstcamerasrc.h"
+#include <ICamera.h>
+#include <Parameters.h>
 
-typedef struct _GstCamerasrcBufferPool GstCamerasrcBufferPool;//in use of qbuf&dqbuf
-typedef struct _GstCamerasrcBufferPoolClass GstCamerasrcBufferPoolClass;//in use of _class_init
+using namespace icamera;
 
 G_BEGIN_DECLS
 GST_DEBUG_CATEGORY_EXTERN(gst_camerasrc_debug);
 #define GST_CAT_DEFAULT gst_camerasrc_debug
 
-#define GST_TYPE_CAMERASRC_BUFFER_POOL      (gst_camerasrc_buffer_pool_get_type())
-#define GST_IS_CAMERASRC_BUFFER_POOL(obj)   (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_CAMERASRC_BUFFER_POOL))
-#define GST_CAMERASRC_BUFFER_POOL(obj)      (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_CAMERASRC_BUFFER_POOL, GstCamerasrcBufferPool))
-#define GST_CAMERASRC_BUFFER_POOL_CAST(obj) ((GstCamerasrcBufferPool *)(obj))
-#define GST_CAMERASRC_META_GET(buf) ((GstCamerasrcMeta *)gst_buffer_get_meta(buf,gst_camerasrc_meta_api_get_type()))
-#define GST_CAMERASRC_META_ADD(buf) ((GstCamerasrcMeta *)gst_buffer_add_meta(buf,gst_camerasrc_meta_get_info(),NULL))
+typedef struct _GstCamerasrcMeta GstCamerasrcMeta;
 
-#define FPS_TIME_INTERVAL 2000000
-#define FPS_BUF_COUNT_START 10
+struct _GstCamerasrcMeta {
+  GstMeta meta;
 
-struct _GstCamerasrcBufferPool
-{
-  GstBufferPool parent;
-
-  GstAllocator *allocator;
-  GstAllocationParams params;
-
-  Gstcamerasrc *src;
-  GstBuffer **buffers;
-
-  gint number_of_buffers;
-  gint number_allocated;
-  gint acquire_buffer_index;
-  gint size;
-
-  int stream_id;
-  gboolean alloc_done;
-#if GST_VERSION_MINOR >= 18
-  gboolean need_alignment;
-  GstVideoAlignment alignment;
-#endif
+  int index;
+  gpointer mem;
+  camera_buffer_t *buffer;
 };
-
-struct _GstCamerasrcBufferPoolClass
-{
-  GstBufferPoolClass parent_class;
-};
-
-GType gst_camerasrc_meta_api_get_type (void);
-GType gst_camerasrc_buffer_pool_get_type(void);
-const GstMetaInfo * gst_camerasrc_meta_get_info (void);
-GstBufferPool *gst_camerasrc_buffer_pool_new(Gstcamerasrc *src,
-          GstCaps *caps, int stream_id);
 
 G_END_DECLS
-#endif
+
+#endif /* __GST_CAMERASRC_META_H__ */
