@@ -2009,16 +2009,15 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_AF_MODE:
       src->man_ctl.af_mode = g_value_get_enum(value);
-
-      if (src->man_ctl.af_mode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_OFF) {
-          src->man_ctl.af_mode = AF_MODE_OFF;
-      } else if (src->man_ctl.af_mode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_AUTO) {
-          src->man_ctl.af_mode = AF_MODE_AUTO;
-      } else if (src->man_ctl.af_mode == (camera_af_mode_t)GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO) {
-          src->man_ctl.af_mode = AF_MODE_CONTINUOUS_VIDEO;
+      if (src->man_ctl.af_mode == GST_CAMERASRC_AF_MODE_OFF) {
+          src->param->setAfMode(AF_MODE_OFF);
+      } else if (src->man_ctl.af_mode == GST_CAMERASRC_AF_MODE_AUTO) {
+          src->param->setAfMode(AF_MODE_AUTO);
+      } else if (src->man_ctl.af_mode == GST_CAMERASRC_AF_MODE_CONTINUOUS_VIDEO) {
+          src->param->setAfMode(AF_MODE_CONTINUOUS_VIDEO);
+      } else {
+          g_message("Failed to recognize man_ctl.af_mode");
       }
-
-      src->param->setAfMode((camera_af_mode_t)src->man_ctl.af_mode);
       break;
     case PROP_AF_TRIGGER:
       src->param->setAfTrigger((camera_af_trigger_t)g_value_get_enum(value));
