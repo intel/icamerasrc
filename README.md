@@ -18,6 +18,7 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
  export CHROME_SLIM_CAMHAL=ON
  export STRIP_VIRTUAL_CHANNEL_CAMHAL=ON
 
+ export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig" # for libdrm.pc
  ./autogen.sh 
  make
  sudo make install
