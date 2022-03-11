@@ -48,3 +48,13 @@ sudo -E gst-launch-1.0 icamerasrc device-name=ov8856-wf ! video/x-raw,format=YUY
 ```
 sudo -E gst-launch-1.0 icamerasrc device-name=ov13858-uf af-mode=2 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
 ```
+
+* Sensor ov01a10
+```
+sudo -E gst-launch-1.0 icamerasrc buffer-count=7 device-name=ov01a10-uf ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
+```
+
+* Sensor ov02c10
+```
+sudo -E gst-launch-1.0 icamerasrc buffer-count=7 device-name=ov02c10-uf ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
+```
