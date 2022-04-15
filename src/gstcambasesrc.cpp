@@ -246,7 +246,7 @@ static gboolean gst_cam_base_src_send_video_stream_start (GstCamBaseSrc *src, Gs
 GType
 gst_cam_base_src_get_type (void)
 {
-  static volatile gsize cam_base_src_type = 0;
+  static gsize cam_base_src_type = 0;
 
   if (g_once_init_enter(&cam_base_src_type)) {
     GType _type;
