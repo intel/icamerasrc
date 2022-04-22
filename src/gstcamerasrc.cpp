@@ -117,6 +117,7 @@ enum
   PROP_AF_FF_DISTANCE,
   PROP_WEIGHT_GRID_MODE,
   PROP_AE_REGION,
+  PROP_AF_REGION,
   PROP_EXPOSURE_TIME_RANGE,
   PROP_GAIN_RANGE,
   PROP_CONVERGE_SPEED,
@@ -266,6 +267,10 @@ static gboolean gst_camerasrc_set_awb_gain_shift (GstCamerasrc3A *cam3a,
     camera_awb_gains_t awbGainShift);
 static gboolean gst_camerasrc_set_ae_region (GstCamerasrc3A *cam3a,
     camera_window_list_t aeRegions);
+static gboolean gst_camerasrc_set_af_region (GstCamerasrc3A *cam3a,
+    camera_window_list_t afRegions);
+static gboolean gst_camerasrc_get_af_region (GstCamerasrc3A *cam3a,
+    camera_window_list_t& afRegions);
 static gboolean gst_camerasrc_set_color_transform (GstCamerasrc3A *cam3a,
     camera_color_transform_t colorTransform);
 static gboolean gst_camerasrc_set_custom_aic_param (GstCamerasrc3A *cam3a,
@@ -1118,6 +1123,10 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
       g_param_spec_string("ae-region","AE region","AE region",
         DEFAULT_PROP_AE_REGION, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property(gobject_class,PROP_AF_REGION,
+      g_param_spec_string("af-region","AF region","AF region",
+        DEFAULT_PROP_AF_REGION, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property(gobject_class,PROP_EXPOSURE_TIME_RANGE,
       g_param_spec_string("exposure-time-range","AE exposure time range","Exposure time range",
         DEFAULT_PROP_EXPOSURE_TIME_RANGE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -1293,6 +1302,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->isp_control_tags = new set <unsigned int>;
   memset(&(camerasrc->man_ctl), 0, sizeof(camerasrc->man_ctl));
   memset(camerasrc->man_ctl.ae_region, 0, sizeof(camerasrc->man_ctl.ae_region));
+  memset(camerasrc->man_ctl.af_region, 0, sizeof(camerasrc->man_ctl.af_region));
   memset(camerasrc->man_ctl.color_transform, 0, sizeof(camerasrc->man_ctl.color_transform));
   camerasrc->man_ctl.iris_mode = DEFAULT_PROP_IRIS_MODE;
   camerasrc->man_ctl.wdr_level = DEFAULT_PROP_WDR_LEVEL;
@@ -1350,6 +1360,8 @@ gst_camerasrc_3a_interface_init (GstCamerasrc3AInterface *iface)
   iface->get_awb_gain_shift = gst_camerasrc_get_awb_gain_shift;
   iface->set_awb_gain_shift = gst_camerasrc_set_awb_gain_shift;
   iface->set_ae_region = gst_camerasrc_set_ae_region;
+  iface->set_af_region = gst_camerasrc_set_af_region;
+  iface->get_af_region = gst_camerasrc_get_af_region;
   iface->set_color_transform = gst_camerasrc_set_color_transform;
   iface->set_custom_aic_param = gst_camerasrc_set_custom_aic_param;
   iface->set_antibanding_mode = gst_camerasrc_set_antibanding_mode;
@@ -2097,6 +2109,13 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
                  "%s", g_value_get_string(value));
       }
       break;
+     case PROP_AF_REGION:
+      if (gst_camerasrc_get_region_vector(g_value_get_string (value), region) == 0) {
+        src->param->setAfRegions(region);
+        snprintf(src->man_ctl.af_region, sizeof(src->man_ctl.af_region),
+                 "%s", g_value_get_string(value));
+      }
+      break;
     case PROP_EXPOSURE_TIME_RANGE:
       g_free(src->man_ctl.exp_time_range);
       src->man_ctl.exp_time_range = g_strdup(g_value_get_string(value));
@@ -2335,6 +2354,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_AE_REGION:
       g_value_set_string (value, src->man_ctl.ae_region);
+      break;
+    case PROP_AF_REGION:
+      g_value_set_string (value, src->man_ctl.af_region);
       break;
     case PROP_EXPOSURE_TIME_RANGE:
       g_value_set_string (value, src->man_ctl.exp_time_range);
@@ -3823,6 +3845,40 @@ gst_camerasrc_set_ae_region (GstCamerasrc3A *cam3a,
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
   camerasrc->param->setAeRegions(aeRegions);
   camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s.", __func__);
+
+  return TRUE;
+}
+
+/* Set AF region
+* param[in]        cam3a    Camera Source handle
+* param[in]        afRegions    regions(left, top, right, bottom, weight)
+* return TRUE if set successfully, otherwise FASLE is returned
+*/
+static gboolean
+gst_camerasrc_set_af_region (GstCamerasrc3A *cam3a,
+    camera_window_list_t afRegions)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  camerasrc->param->setAfRegions(afRegions);
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s.", __func__);
+
+  return TRUE;
+}
+
+/* Get AF region
+* param[in]        cam3a    Camera Source handle
+* param[out]       afRegions    regions(left, top, right, bottom, weight)
+* return TRUE if set successfully, otherwise FASLE is returned
+*/
+static gboolean
+gst_camerasrc_get_af_region (GstCamerasrc3A *cam3a,
+    camera_window_list_t& afRegions)
+{
+  Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  camerasrc->param->getAfRegions(afRegions);
+  camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
   g_message("Interface Called: @%s.", __func__);
 
   return TRUE;

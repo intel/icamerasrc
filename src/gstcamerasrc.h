@@ -138,6 +138,7 @@ using namespace std;
 /* Default value of string type properties */
 #define DEFAULT_PROP_WP NULL
 #define DEFAULT_PROP_AE_REGION NULL
+#define DEFAULT_PROP_AF_REGION NULL
 #define DEFAULT_PROP_EXPOSURE_TIME_RANGE NULL
 #define DEFAULT_PROP_GAIN_RANGE NULL
 #define DEFAULT_PROP_CCT_RANGE NULL
@@ -399,6 +400,7 @@ struct _Gst3AManualControl
   int af_ff_distance;
   int weight_grid_mode;
   char ae_region[128];
+  char af_region[128];
   int converge_speed;
   int converge_speed_mode;
   gchar *exp_time_range;

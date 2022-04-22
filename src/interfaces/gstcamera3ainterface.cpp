@@ -116,6 +116,8 @@ gst_camerasrc_3a_iface_init (GstCamerasrc3AInterface *iface)
   iface->get_awb_gain_shift = NULL;
   iface->set_awb_gain_shift = NULL;
   iface->set_ae_region = NULL;
+  iface->set_af_region = NULL;
+  iface->get_af_region = NULL;
   iface->set_color_transform = NULL;
   iface->set_custom_aic_param = NULL;
   iface->set_antibanding_mode = NULL;

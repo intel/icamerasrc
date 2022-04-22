@@ -375,6 +375,20 @@ struct _GstCamerasrc3AInterface {
   */
   gboolean      (*set_ae_region)      (GstCamerasrc3A *cam3a, camera_window_list_t aeRegions);
 
+  /* Set AF region
+  * param[in]        cam3a    Camera Source handle
+  * param[in]        afRegions    regions(left, top, right, bottom, weight)
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*set_af_region)      (GstCamerasrc3A *cam3a, camera_window_list_t afRegions);
+
+  /* Get AF region
+  * param[in]        cam3a    Camera Source handle
+  * param[out]       afRegions    regions(left, top, right, bottom, weight)
+  * return 0 if set successfully, otherwise non-0 value is returned
+  */
+  gboolean      (*get_af_region)      (GstCamerasrc3A *cam3a, camera_window_list_t& afRegions);
+
   /* Set color transform
   * param[in]        cam3a    Camera Source handle
   * param[in]        colorTransform    float array
