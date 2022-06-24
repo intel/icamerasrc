@@ -46,6 +46,10 @@
 
 #include <gst/gst.h>
 
+#if GST_VERSION_MINOR >= 18
+#include <gst/video/video-info.h>
+#endif
+
 G_BEGIN_DECLS
 
 /**
@@ -125,6 +129,12 @@ struct _GstCamBaseSrc {
 
     /*< protected >*/
   GstPad        *srcpad;
+
+#if GST_VERSION_MINOR >= 18
+  /* for io_mode=dma_mode use case */
+  GstVideoInfo   srcpad_info;
+  gboolean       is_info_change;
+#endif
 
   /* available to subclass implementations */
   /* MT-protected (with LIVE_LOCK) */
@@ -291,6 +301,10 @@ struct _GstCamBaseSrcClass {
   /* need to add video pad in the element */
   GstPad *     (*add_video_pad)         (GstCamBaseSrc *src, GstCamBaseSrcClass *klass,
                                          GstPad *pad, guint stream_id, const char *padname);
+#if GST_VERSION_MINOR >= 18
+  /* need to add video info */
+   void          (*add_video_info)    (GstCamBaseSrc *src, GstVideoInfo *info, gboolean is_info_change);
+#endif
 
   /*< private >*/
   gpointer       _gst_reserved[GST_PADDING_LARGE];

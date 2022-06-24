@@ -233,6 +233,11 @@ static gboolean gst_cam_base_src_set_playing (GstCamBaseSrc * basesrc, gboolean 
 /* requisite functions for operating requested pads and streams */
 static GstPad *gst_cam_base_src_add_video_pad(GstCamBaseSrc *basesrc, GstCamBaseSrcClass *klass,
     GstPad *pad, guint stream_id, const char *padname);
+
+#if GST_VERSION_MINOR >= 18
+static void gst_cam_base_src_add_video_info(GstCamBaseSrc *basesrc, GstVideoInfo *info, gboolean is_info_change);
+#endif
+
 static gboolean gst_cam_base_src_video_activate_push (GstPad * pad, GstObject * parent, guint stream_id, gboolean active);
 static GstClockReturn gst_cam_base_src_do_video_sync (GstCamBaseSrc * basesrc, guint stream_id, GstBuffer * buffer);
 static gboolean gst_cam_base_src_video_query (GstPad *pad, GstObject *parent, GstQuery *query);
@@ -334,6 +339,10 @@ gst_cam_base_src_class_init(GstCamBaseSrcClass * klass)
   /* extra interface for multi-stream feature to add more source pads */
   klass->add_video_pad = GST_DEBUG_FUNCPTR(gst_cam_base_src_add_video_pad);
 
+#if GST_VERSION_MINOR >= 18
+  klass->add_video_info = GST_DEBUG_FUNCPTR(gst_cam_base_src_add_video_info);
+#endif
+
   /* Registering debug symbols for function pointers */
   GST_DEBUG_REGISTER_FUNCPTR (gst_cam_base_src_activate_mode);
   GST_DEBUG_REGISTER_FUNCPTR (gst_cam_base_src_event);
@@ -398,6 +407,15 @@ gst_cam_base_src_add_video_pad(GstCamBaseSrc *basesrc, GstCamBaseSrcClass *klass
   return pad;
 }
 
+#if GST_VERSION_MINOR >= 18
+static void
+gst_cam_base_src_add_video_info(GstCamBaseSrc *basesrc, GstVideoInfo *info, gboolean is_info_change)
+{
+  basesrc->srcpad_info = *info;
+  basesrc->is_info_change = is_info_change;
+}
+#endif
+
 static inline gpointer
 gst_cam_base_src_get_instance_private (GstCamBaseSrc *self)
 {
@@ -424,6 +442,11 @@ gst_cam_base_src_init(GstCamBaseSrc *basesrc, GstCamBaseSrcClass *klass)
     basesrc->can_activate_push = TRUE;
 
     gst_cam_base_src_add_src_pad(basesrc, klass);
+
+#if GST_VERSION_MINOR >= 18
+    gst_video_info_init(&basesrc->srcpad_info);
+    basesrc->is_info_change = FALSE;
+#endif
 
     basesrc->blocksize = DEFAULT_BLOCKSIZE;
     basesrc->clock_id = NULL;
@@ -3678,9 +3701,28 @@ gst_cam_base_src_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
   if (G_LIKELY (result)) {
     GstCaps *caps = NULL;
 
-  caps = gst_pad_get_current_caps (pad);
+#if GST_VERSION_MINOR >= 18
+    GstCaps *tmp_caps = NULL;
+    GstVideoInfo vinfo;
+#endif
 
-  result = gst_cam_base_src_prepare_allocation (basesrc, caps, pad);
+    caps = gst_pad_get_current_caps (pad);
+
+#if GST_VERSION_MINOR >= 18
+    if (basesrc->is_info_change) {
+      if (!gst_video_info_from_caps(&vinfo, caps))
+        GST_DEBUG_OBJECT (basesrc, "Failed to get video info from caps.");
+      else {
+        if (!gst_video_info_is_equal(&basesrc->srcpad_info, &vinfo))
+          tmp_caps = gst_video_info_to_caps(&basesrc->srcpad_info);
+      }
+    }
+
+    if (tmp_caps)
+      result = gst_cam_base_src_prepare_allocation (basesrc, tmp_caps, pad);
+    else
+#endif
+      result = gst_cam_base_src_prepare_allocation (basesrc, caps, pad);
 
     if (caps)
       gst_caps_unref (caps);
@@ -3966,6 +4008,11 @@ gst_cam_base_src_stop (GstCamBaseSrc * basesrc)
         g_mutex_clear (&basesrc->mux[i].vid_live_lock);
       }
   }
+
+#if GST_VERSION_MINOR >= 18
+  gst_video_info_init(&basesrc->srcpad_info);
+  basesrc->is_info_change = FALSE;
+#endif
 
   return result;
 

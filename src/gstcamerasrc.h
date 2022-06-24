@@ -132,6 +132,8 @@ using namespace std;
 #define DEFAULT_PROP_VIDEO_STABILIZATION_MODE GST_CAMERASRC_VIDEO_STABILIZATION_MODE_OFF
 /* Default value of enum type property 'buffer-flag': read */
 #define DEFAULT_PROP_BUFFER_USAGE GST_CAMERASRC_BUFFER_USAGE_NONE
+/* Default value of enum type property 'src-stream-flag': preview */
+#define DEFAULT_PROP_SRC_STREAM_USAGE CAMERA_STREAM_PREVIEW
 /* Default value of enum type property 'fisheye-dewarping':off */
 #define DEFAULT_PROP_FISHEYE_DEWARPING_MODE GST_CAMERASRC_FISHEYE_DEWARPING_MODE_OFF
 

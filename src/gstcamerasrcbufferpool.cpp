@@ -184,6 +184,14 @@ gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc,
     gst_camerasrc_set_video_alignment(&info, 0, 0, &align);
     gst_video_info_align(&info, &align);
     camerasrc->s[stream_id].size = GST_VIDEO_INFO_SIZE(&info);
+
+    /* check if libcamhal require larger frame size */
+    int frame_size = get_frame_size(camerasrc->device_id, camerasrc->s[stream_id].format, camerasrc->s[stream_id].width,
+                     camerasrc->s[stream_id].height, camerasrc->s[stream_id].field, &bpp);
+    if (frame_size > (int)GST_VIDEO_INFO_SIZE(&info)){
+        GST_INFO("Libcamhal required larger frame size %d than GST_VIDEO_INFO_SIZE %ld",frame_size, GST_VIDEO_INFO_SIZE(&info));
+        camerasrc->s[stream_id].size = frame_size;
+    }
 #else
     /* Get format bpp and actual frame size from HAL */
     int frame_size = get_frame_size(camerasrc->device_id, camerasrc->s[stream_id].format, camerasrc->s[stream_id].width,

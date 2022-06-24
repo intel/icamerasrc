@@ -1181,7 +1181,7 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_SRC_STREAM_USAGE,
       g_param_spec_enum ("src-stream-usage", "Src stream flags", "Used to specify src stream properties",
-          gst_camerasrc_src_stream_usage_get_type(), CAMERA_STREAM_VIDEO_CAPTURE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          gst_camerasrc_src_stream_usage_get_type(), DEFAULT_PROP_SRC_STREAM_USAGE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property(gobject_class,PROP_ISP_CONTROL,
       g_param_spec_string("isp-control","isp control","Use a file which contains the detial settings to control isp",
@@ -1272,7 +1272,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->fisheye_dewarping_mode = DEFAULT_PROP_FISHEYE_DEWARPING_MODE;
   camerasrc->input_fmt = DEFAULT_PROP_INPUT_FORMAT;
   camerasrc->buffer_usage= DEFAULT_PROP_BUFFER_USAGE;
-  camerasrc->src_stream_usage = CAMERA_STREAM_VIDEO_CAPTURE;
+  camerasrc->src_stream_usage = DEFAULT_PROP_SRC_STREAM_USAGE;
   camerasrc->input_config.width = DEFAULT_PROP_INPUT_WIDTH;
   camerasrc->input_config.height = DEFAULT_PROP_INPUT_HEIGHT;
   camerasrc->input_config.format = -1;
@@ -1295,7 +1295,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].gstbuf_timestamp = 0;
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_config_done = FALSE;
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].activated = TRUE;
-  camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_usage = CAMERA_STREAM_VIDEO_CAPTURE;
+  camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_usage = DEFAULT_PROP_SRC_STREAM_USAGE;
 
   /* set default value for 3A manual control*/
   camerasrc->param = new Parameters;
@@ -1463,7 +1463,7 @@ static GstPad *gst_camerasrc_request_new_pad (GstElement * element,
   camerasrc->streams[request_pad_index].gstbuf_timestamp = 0;
   camerasrc->streams[request_pad_index].stream_config_done = FALSE;
   camerasrc->streams[request_pad_index].activated = TRUE;
-  camerasrc->streams[request_pad_index].stream_usage = CAMERA_STREAM_VIDEO_CAPTURE;
+  camerasrc->streams[request_pad_index].stream_usage = DEFAULT_PROP_SRC_STREAM_USAGE;
 
   if (name_templ && sscanf (name_templ, "still_%u", &index) == 1) {
     camerasrc->streams[request_pad_index].stream_usage = CAMERA_STREAM_STILL_CAPTURE;
@@ -2637,6 +2637,12 @@ gst_camerasrc_set_caps(GstCamBaseSrc *src, GstPad *pad, GstCaps *caps)
   PERF_CAMERA_ATRACE();
   Gstcamerasrc *camerasrc = GST_CAMERASRC (src);
   gboolean ready_config = TRUE;
+
+#if GST_VERSION_MINOR >= 18
+  GstVideoInfo vinfo;
+  GstVideoAlignment align;
+#endif
+
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
   gchar *padname = gst_pad_get_name(pad);
   if (stream_id < 0) {
@@ -2659,6 +2665,16 @@ gst_camerasrc_set_caps(GstCamBaseSrc *src, GstPad *pad, GstCaps *caps)
     g_free (padname);
     return FALSE;
   }
+
+#if GST_VERSION_MINOR >= 18
+  if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
+    if (gst_video_info_from_caps(&vinfo, caps)) {
+      gst_camerasrc_set_video_alignment(&vinfo, 0, 0, &align);
+      gst_video_info_align(&vinfo, &align);
+      GST_CAM_BASE_SRC_CLASS(parent_class)->add_video_info(src, &vinfo, TRUE);
+    }
+  }
+#endif
 
   /* Set memory type of stream */
   gst_camerasrc_set_memtype(camerasrc, stream_id);
@@ -3173,11 +3189,11 @@ gst_camerasrc_get_image_enhancement (GstCamerasrc3A *cam3a,
     camera_image_enhancement_t img_enhancement)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
+  camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
   camerasrc->param->getImageEnhancement(img_enhancement);
   g_message("Interface Called: @%s, sharpness=%d, brightness=%d, contrast=%d, hue=%d, saturation=%d.",
                                __func__, img_enhancement.sharpness, img_enhancement.brightness,
                                img_enhancement.contrast, img_enhancement.hue, img_enhancement.saturation);
-  camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
 
   return img_enhancement;
 }
@@ -3193,10 +3209,10 @@ gst_camerasrc_set_image_enhancement(GstCamerasrc3A *cam3a,
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
   camerasrc->param->setImageEnhancement(img_enhancement);
+  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
   g_message("Interface Called: @%s, sharpness=%d, brightness=%d, contrast=%d, hue=%d, saturation=%d.",
                                __func__, img_enhancement.sharpness, img_enhancement.brightness,
                                img_enhancement.contrast, img_enhancement.hue, img_enhancement.saturation);
-  camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
 
   return TRUE;
 }
@@ -3211,8 +3227,8 @@ gst_camerasrc_set_exposure_time (GstCamerasrc3A *cam3a, guint exp_time)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
   camerasrc->param->setExposureTime(exp_time);
-  g_message("Interface Called: @%s, exposure time=%d.", __func__, exp_time);
   camera_set_parameters(camerasrc->device_id, *(camerasrc->param));
+  g_message("Interface Called: @%s, exposure time=%d.", __func__, exp_time);
 
   return TRUE;
 }
@@ -3341,8 +3357,8 @@ gst_camerasrc_get_awb_gain (GstCamerasrc3A *cam3a,
     camera_awb_gains_t& awbGains)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
-  camerasrc->param->getAwbGains(awbGains);
   camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
+  camerasrc->param->getAwbGains(awbGains);
   g_message("Interface Called: @%s, r_gain=%d, g_gain=%d, b_gain=%d.", __func__,
       awbGains.r_gain, awbGains.g_gain, awbGains.b_gain);
 
@@ -3490,12 +3506,12 @@ gst_camerasrc_get_af_state (GstCamerasrc3A *cam3a,
     camera_af_state_t& afState)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
-  camerasrc->param->getAfState(afState);
+
   camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
-  g_message("Interface Called: @%s, af state=%d.", __func__, afState);
+  int ret = camerasrc->param->getAfState(afState);
+  g_message("Interface Called: @%s return %d, af state=%d.", __func__, ret, afState);
 
-  return TRUE;
-
+  return ret;
 }
 
 /* Set AF trigger
@@ -3733,8 +3749,8 @@ gst_camerasrc_get_awb_cct_range (GstCamerasrc3A *cam3a,
     camera_range_t& cct)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
-  camerasrc->param->getAwbCctRange(cct);
   camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
+  camerasrc->param->getAwbCctRange(cct);
   g_message("Interface Called: @%s, get cct range, min=%f, max=%f.", __func__,
       cct.min, cct.max);
 
@@ -3769,8 +3785,8 @@ gst_camerasrc_get_white_point (GstCamerasrc3A *cam3a,
     camera_coordinate_t &whitePoint)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
-  camerasrc->param->getAwbWhitePoint(whitePoint);
   camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
+  camerasrc->param->getAwbWhitePoint(whitePoint);
   g_message("Interface Called: @%s, get white point, x=%d, y=%d.", __func__,
       whitePoint.x, whitePoint.y);
 
@@ -3807,8 +3823,8 @@ gst_camerasrc_get_awb_gain_shift (GstCamerasrc3A *cam3a,
     camera_awb_gains_t& awbGainShift)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
-  camerasrc->param->getAwbGainShift(awbGainShift);
   camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
+  camerasrc->param->getAwbGainShift(awbGainShift);
   g_message("Interface Called: @%s, r_gain=%d, g_gain=%d, b_gain=%d.", __func__,
       awbGainShift.r_gain, awbGainShift.g_gain, awbGainShift.b_gain);
 
@@ -3877,11 +3893,11 @@ gst_camerasrc_get_af_region (GstCamerasrc3A *cam3a,
     camera_window_list_t& afRegions)
 {
   Gstcamerasrc *camerasrc = GST_CAMERASRC(cam3a);
-  camerasrc->param->getAfRegions(afRegions);
   camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
-  g_message("Interface Called: @%s.", __func__);
+  int ret = camerasrc->param->getAfRegions(afRegions);
+  g_message("Interface Called: @%s return %d", __func__, ret);
 
-  return TRUE;
+  return (ret == 0 ? TRUE : FALSE);
 }
 
 /* Set color transform
@@ -4132,14 +4148,11 @@ static gboolean gst_camerasrc_set_dewarping_mode (GstCamerasrcDewarping *camDewa
 */
 static gboolean gst_camerasrc_get_dewarping_mode (GstCamerasrcDewarping *camDewarping, camera_fisheye_dewarping_mode_t &mode)
 {
-  int ret = 0;
-  Parameters param;
   Gstcamerasrc *camerasrc = GST_CAMERASRC(camDewarping);
   g_message("Enter %s", __func__);
 
-  camerasrc->param->getFisheyeDewarpingMode(mode);
-  camera_get_parameters(camerasrc->device_id, param);
-  ret = param.getFisheyeDewarpingMode(mode);
+  camera_get_parameters(camerasrc->device_id, *(camerasrc->param));
+  int ret = camerasrc->param->getFisheyeDewarpingMode(mode);
 
   return (ret == 0 ? TRUE : FALSE);
 }
@@ -4322,6 +4335,7 @@ static gboolean gst_camerasrc_set_camera_rotation(GstCamerasrcWFOV *camWFOV, cam
 
   camera_get_parameters(camerasrc->device_id, param);
   ret = param.setCameraRotation(camRotation);
+  camera_set_parameters(camerasrc->device_id, param);
 
   return (ret == 0 ? TRUE : FALSE);
 }
