@@ -784,8 +784,12 @@ gst_cam_base_src_set_do_timestamp (GstCamBaseSrc * src, gboolean timestamp)
 
   GST_OBJECT_LOCK (src);
   src->priv->do_timestamp = timestamp;
-  if (timestamp && src->segment.format != GST_FORMAT_TIME)
+  if (timestamp && src->segment.format != GST_FORMAT_TIME) {
     gst_segment_init (&src->segment, GST_FORMAT_TIME);
+    for (auto& k : src->priv->request_stream_map) {
+      gst_segment_init (&src->mux[k.second].vid_segment, GST_FORMAT_TIME);
+    }
+  }
   GST_OBJECT_UNLOCK (src);
 }
 
@@ -2856,18 +2860,15 @@ start_failed:
 static void
 gst_cam_base_src_loop (GstPad * pad)
 {
-  GstCamBaseSrc *src;
   GstBuffer *buf = NULL;
-  GstFlowReturn ret;
-  gint64 position;
-  gboolean eos;
+  gint64 position = 0;
+  GstFlowReturn ret = GST_FLOW_OK;
   guint blocksize;
-  GList *pending_events = NULL, *tmp;
   gchar *padname = gst_pad_get_name(pad);
+  GstCamBaseSrc *src = GST_CAM_BASE_SRC (GST_OBJECT_PARENT (pad));
+  GList *pending_events = NULL, *tmp;
 
-  eos = FALSE;
-
-  src = GST_CAM_BASE_SRC (GST_OBJECT_PARENT (pad));
+  gboolean eos = FALSE;
 
   /* Just leave immediately if we're flushing */
   GST_LIVE_LOCK (src);
@@ -2941,6 +2942,9 @@ gst_cam_base_src_loop (GstPad * pad)
     gst_event_set_seqnum (seg_event, src->priv->segment_seqnum);
     src->priv->segment_seqnum = gst_util_seqnum_next ();
     gst_pad_push_event (pad, seg_event);
+    for (auto& k : src->priv->request_stream_map) {
+      gst_pad_push_event (src->mux[k.second].videopad, seg_event);
+    }
     src->priv->segment_pending = FALSE;
   }
 
@@ -2958,6 +2962,9 @@ gst_cam_base_src_loop (GstPad * pad)
     for (tmp = pending_events; tmp; tmp = g_list_next (tmp)) {
       GstEvent *ev = (GstEvent *) tmp->data;
       gst_pad_push_event (pad, ev);
+      for (auto& k : src->priv->request_stream_map) {
+        gst_pad_push_event (src->mux[k.second].videopad, ev);
+      }
     }
     g_list_free (pending_events);
   }
