@@ -58,6 +58,7 @@ Linux camera src.
 %install
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/lib/gstreamer-1.0
+mkdir -p %{buildroot}/usr/lib/pkgconfig
 mkdir -p %{buildroot}/usr/include/icamerasrc/interfaces
 mkdir -p %{buildroot}/usr/include/gstreamer-1.0/gst
 
@@ -68,6 +69,7 @@ cp -v %{_srcdir}/src/interfaces/.libs/*.la %{buildroot}/usr/lib/
 cp -v %{_srcdir}/src/interfaces/*.h %{buildroot}/usr/include/icamerasrc/interfaces
 cp -v %{_srcdir}/src/interfaces/*.h %{buildroot}/usr/include/gstreamer-1.0/gst
 cp -v %{_srcdir}/src/gst/gstcamerasrcmeta.h %{buildroot}/usr/include/gstreamer-1.0/gst
+sed 's/^prefix=\/.\+$/prefix=\/usr/' %{_srcdir}/libgsticamerasrc.pc > %{buildroot}/usr/lib/pkgconfig/libgsticamerasrc.pc
 
 %files
 /usr/lib/gstreamer-1.0
