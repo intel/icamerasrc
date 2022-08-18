@@ -7,6 +7,6 @@ Name: icamerasrc
 Description: Icamerasrc libraries
 URL:
 Version: @VERSION@
-Libs: -L${libdir} -licamerasrc
-Cflags: -I${includedir} \
-        -I${includedir}/gstreamer-@GST_API_VERSION@/gst/icamera \
+Libs: -L${libdir} -lgsticamerainterface-@GST_API_VERSION@
+Cflags: -I${includedir}/gstreamer-@GST_API_VERSION@ \
+        -I${includedir}/icamerasrc/interfaces
