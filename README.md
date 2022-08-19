@@ -19,6 +19,8 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
  export STRIP_VIRTUAL_CHANNEL_CAMHAL=ON
 
  export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig" # for libdrm.pc
+ ##
+ export PKG_CONFIG_PATH="/usr/lib/pkgconfig" # for yocto
  ./autogen.sh 
  make
  sudo make install
@@ -57,4 +59,9 @@ sudo -E gst-launch-1.0 icamerasrc buffer-count=7 device-name=ov01a10-uf ! video/
 * Sensor ov02c10
 ```
 sudo -E gst-launch-1.0 icamerasrc buffer-count=7 device-name=ov02c10-uf ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
+```
+
+* Sensor ar0234
+```
+sudo -E gst-launch-1.0 icamerasrc device-name=ar0234 ! video/x-raw,format=NV12,width=1280,height=960 ! videoconvert ! glimagesink
 ```
