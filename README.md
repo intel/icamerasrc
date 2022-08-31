@@ -28,7 +28,7 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
  make rpm
  rpm -ivh --force --nodeps icamerasrc-xxx.rpm
  
-# Pipeline examples
+## Pipeline examples
 * Testpattern generator (no sensor)
 ```
 sudo -E gst-launch-1.0 icamerasrc device-name=tpg_ipu6 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! xvimagesink
