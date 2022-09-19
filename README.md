@@ -31,36 +31,32 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
 ## Pipeline examples
 * Testpattern generator (no sensor)
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=tpg_ipu6 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! xvimagesink
+sudo -E gst-launch-1.0 icamerasrc device-name=tpg_ipu6 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
-* Sensor ov01a1s
+* For laptops with 11th Gen Intel Core Procesors (with ov01a1s/hm11b1 sensor):
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=ov01a1s-uf ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! xvimagesink
+sudo -E gst-launch-1.0 icamerasrc buffer-count=7 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
-* Sensor hm11b1
+* For laptops with 12th/13th Gen Intel Core Procesors (with ov01a10/ov02c10/ov2740/hm2170/hi556 sensor):
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=hm11b1-uf ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! xvimagesink
+sudo -E gst-launch-1.0 icamerasrc buffer-count=7 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
 * Sensor ov8856
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=ov8856-wf ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
+sudo -E gst-launch-1.0 icamerasrc device-name=ov8856-wf af-mode=2 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
 ```
+
+* Sensor ov13b10
+```
+sudo -E gst-launch-1.0 icamerasrc device-name=ov13b10-wf af-mode=2 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
+```
+
 * Sensor ov13858
 ```
 sudo -E gst-launch-1.0 icamerasrc device-name=ov13858-uf af-mode=2 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
-```
-
-* Sensor ov01a10
-```
-sudo -E gst-launch-1.0 icamerasrc buffer-count=7 device-name=ov01a10-uf ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
-```
-
-* Sensor ov02c10
-```
-sudo -E gst-launch-1.0 icamerasrc buffer-count=7 device-name=ov02c10-uf ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
 * Sensor ar0234
