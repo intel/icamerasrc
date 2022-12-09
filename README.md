@@ -14,21 +14,24 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
 * Prerequisites: ipu6-camera-bins and ipu6-camera-hal installed 
 * Prerequisites: libdrm-dev
 
- export CHROME_SLIM_CAMHAL=ON
- export STRIP_VIRTUAL_CHANNEL_CAMHAL=ON
+```sh
+export CHROME_SLIM_CAMHAL=ON
+export STRIP_VIRTUAL_CHANNEL_CAMHAL=ON
+# for libdrm.pc
+export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
+# only for yocto
+export PKG_CONFIG_PATH="/usr/lib/pkgconfig"
+./autogen.sh
+make -j8
+# binary install
+sudo make install
+# build rpm package and then install
+make rpm
+rpm -ivh --force --nodeps icamerasrc-*.rpm
+```
 
- export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig" # for libdrm.pc
-
- export PKG_CONFIG_PATH="/usr/lib/pkgconfig" #only for yocto  
- ./autogen.sh   
- make -j8
- ## chose 1:  
- sudo make install
- ## chose 2:  
- make rpm
- rpm -ivh --force --nodeps icamerasrc-xxx.rpm
- 
 ## Pipeline examples
+* Ensure `${GST_PLUGIN_PATH}` includes icamerasrc installation path
 * Testpattern generator (no sensor)
 ```
 sudo -E gst-launch-1.0 icamerasrc device-name=tpg_ipu6 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
