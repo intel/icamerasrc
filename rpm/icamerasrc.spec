@@ -72,6 +72,5 @@ cp -v %{_srcdir}/src/gst/gstcamerasrcmeta.h %{buildroot}/usr/include/gstreamer-1
 sed 's/^prefix=\/.\+$/prefix=\/usr/' %{_srcdir}/libgsticamerasrc.pc > %{buildroot}/usr/lib/pkgconfig/libgsticamerasrc.pc
 
 %files
-/usr/lib/gstreamer-1.0
 /usr/lib/
 /usr/include/
