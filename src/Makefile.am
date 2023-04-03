@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2021 Intel Corporation
+#  Copyright (C) 2015-2023 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -81,10 +81,6 @@ libgsticamerasrc_la_CPPFLAGS = \
 
 if USE_CHROME_SLIM_CAMHAL
 libgsticamerasrc_la_CPPFLAGS += -DCHROME_SLIM_CAMHAL
-endif
-
-if USE_STRIP_VIRTUAL_CHANNEL_CAMHAL
-libgsticamerasrc_la_CPPFLAGS += -DSTRIP_VIRTUAL_CHANNEL_CAMHAL
 endif
 
 # for hardening-check
