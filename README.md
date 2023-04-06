@@ -16,7 +16,6 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
 
 ```sh
 export CHROME_SLIM_CAMHAL=ON
-export STRIP_VIRTUAL_CHANNEL_CAMHAL=ON
 # for libdrm.pc
 export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
 # only for yocto

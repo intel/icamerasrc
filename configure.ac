@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2020 Intel Corporation
+#  Copyright (C) 2015-2023 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -206,10 +206,6 @@ AC_SUBST(GST_PLUGIN_LDFLAGS)
 AC_MSG_CHECKING([check if CHROME_SLIM_CAMHAL is ON])
 AS_IF([test "x${CHROME_SLIM_CAMHAL}" = "xON" ], AC_MSG_RESULT([yes]), AC_MSG_RESULT([no]))
 AM_CONDITIONAL([USE_CHROME_SLIM_CAMHAL], [test "x${CHROME_SLIM_CAMHAL}" = "xON"])
-
-AC_MSG_CHECKING([check if STRIP_VIRTUAL_CHANNEL_CAMHAL is ON])
-AS_IF([test "x${STRIP_VIRTUAL_CHANNEL_CAMHAL}" = "xON" ], AC_MSG_RESULT([yes]), AC_MSG_RESULT([no]))
-AM_CONDITIONAL([USE_STRIP_VIRTUAL_CHANNEL_CAMHAL], [test "x${STRIP_VIRTUAL_CHANNEL_CAMHAL}" = "xON"])
 
 AC_CONFIG_FILES([Makefile
                  src/Makefile

@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2015-2021 Intel Corporation
+ * Copyright (C) 2015-2023 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -980,7 +980,7 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
         gst_camerasrc_device_id_get_type(), DEFAULT_PROP_DEVICE_ID, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property(gobject_class,PROP_NUM_VC,
-      g_param_spec_int("num-vc","Number Virtual Channel","Number of enabled Virtual Channel",
+      g_param_spec_int("num-vc","Number Virtual Channel","Number of enabled Virtual Channel: 0 is mean disable VC",
         0,8,0, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property(gobject_class,PROP_DEBUG_LEVEL,
@@ -2836,11 +2836,7 @@ gst_camerasrc_start(GstCamBaseSrc *basesrc)
     return FALSE;
   }
   camerasrc->camera_init = true;
-#ifndef STRIP_VIRTUAL_CHANNEL_CAMHAL
   ret = camera_device_open(camerasrc->device_id, camerasrc->num_vc);
-#else
-  ret = camera_device_open(camerasrc->device_id);
-#endif
   if (ret < 0) {
      GST_ERROR("CameraId=%d failed to open libcamhal device.", camerasrc->device_id);
      camerasrc->camera_open = false;
