@@ -94,6 +94,9 @@ AC_ARG_WITH([androidstubs],
   [],
   [with_androidstubs=no])
 
+AC_ARG_WITH([haladaptor],
+  AC_HELP_STRING([--with-haladaptor], [Link hal adaptor library [default=no]]))
+
 AC_ARG_VAR([DEFAULT_CAMERA],
   [the default camera ID])
 
@@ -166,12 +169,23 @@ PKG_CHECK_MODULES(GST, [
   ])
 ])
 
-PKG_CHECK_MODULES(CAMHAL, [libcamhal], [
-  AC_SUBST(CAMHAL_CFLAGS)
-  AC_SUBST(CAMHAL_LIBS)
-], [
-  AC_MSG_ERROR([Cannot find libcamhal pkgconfig])
-])
+if test "x$with_haladaptor" == "xyes"; then
+  echo Building with hal_adaptor
+  PKG_CHECK_MODULES(CAMHAL, [hal_adaptor], [
+    AC_SUBST(CAMHAL_CFLAGS)
+    AC_SUBST(CAMHAL_LIBS)
+  ], [
+    AC_MSG_ERROR([Cannot find hal_adaptor pkgconfig])
+  ])
+else
+  echo Building with libcamhal
+  PKG_CHECK_MODULES(CAMHAL, [libcamhal], [
+    AC_SUBST(CAMHAL_CFLAGS)
+    AC_SUBST(CAMHAL_LIBS)
+  ], [
+    AC_MSG_ERROR([Cannot find libcamhal pkgconfig])
+  ])
+fi
 
 PKG_CHECK_MODULES(LIBDRM, [libdrm libdrm_intel], [
   AC_SUBST(LIBDRM_CFLAGS)
