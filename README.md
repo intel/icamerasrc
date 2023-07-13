@@ -21,6 +21,7 @@ export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
 # only for yocto
 export PKG_CONFIG_PATH="/usr/lib/pkgconfig"
 ./autogen.sh
+./configure --with-haladaptor=yes
 make -j8
 # binary install
 sudo make install
