@@ -1,0 +1,82 @@
+name: Build tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: ["ubuntu:22.04", "ubuntu:20.04"]
+
+    runs-on: ubuntu-latest
+    container: ${{ matrix.os }}
+    steps:
+      - name: Install prerequisite packages
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update --quiet
+          apt-get install --no-install-recommends --quiet --yes \
+            automake \
+            build-essential \
+            cmake \
+            libdrm-dev \
+            libexpat-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libtool \
+            pkg-config
+
+      - uses: actions/checkout@v3
+        with:
+          repository: intel/ipu6-camera-bins
+          ref: dfsg
+          path: bins
+
+      - name: Install from intel/ipu6-camera-bins
+        run: |
+          cd "${GITHUB_WORKSPACE}/bins"
+
+          cat README.md | \
+            awk 'BEGIN { \
+                FS="/"; \
+              } \
+              /^```/ { \
+                getline; \
+                if ($1 == "# Runtime files") { \
+                  while ($1 != "```") { \
+                    print $0; \
+                    getline; \
+                  } \
+                } \
+              }' | \
+            sed 's,ipu6-camera-bins/,./,' | \
+            sh -x
+
+      - uses: actions/checkout@v3
+        with:
+          repository: intel/ipu6-camera-hal
+          ref: dfsg
+          path: hal
+
+      - name: Install from intel/ipu6-camera-hal
+        run: |
+          cd "${GITHUB_WORKSPACE}/hal"
+
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ../src/hal/hal_adaptor
+          make -j$(nproc) install
+
+      - uses: actions/checkout@v3
+        with:
+          path: icamerasrc
+
+      - name: Install from intel/icamerasrc
+        env:
+          CHROME_SLIM_CAMHAL: ON
+        run: |
+          cd "${GITHUB_WORKSPACE}/icamerasrc"
+
+          ./autogen.sh && make -j$(nproc) install
