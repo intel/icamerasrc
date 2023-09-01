@@ -1440,7 +1440,7 @@ static GstPad *gst_camerasrc_request_new_pad (GstElement * element,
     }
   } else {
     GST_ERROR("Invalid pad name: %s, please follow 'video_%%u' or 'still_%%u' as template to name it", name_templ);
-    GST_CAMSRC_LOCK(camerasrc);
+    GST_CAMSRC_UNLOCK(camerasrc);
     return NULL;
   }
 
@@ -1498,17 +1498,24 @@ static void gst_camerasrc_release_pad (GstElement * element, GstPad * pad)
   Gstcamerasrc *camerasrc = GST_CAMERASRC(element);
   gchar *padname = gst_pad_get_name(pad);
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
+
+  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM) {
+    GST_ERROR("CameraId=%d pad %s has no stream_id %d", camerasrc->device_id,
+      padname, stream_id);
+    g_free(padname);
+    return;
+  }
   GST_INFO("CameraId=%d.", camerasrc->device_id);
 
   GST_CAMSRC_LOCK(camerasrc);
-  g_hash_table_remove(camerasrc->pad_indexes, GUINT_TO_POINTER(camerasrc->stream_map[padname]));
+  g_hash_table_remove(camerasrc->pad_indexes, GUINT_TO_POINTER(stream_id));
   camerasrc->stream_map.erase(padname);
   camerasrc->number_of_activepads--;
   camerasrc->streams[stream_id].activated = FALSE;
   gst_pad_set_active(pad, FALSE);
   gst_element_remove_pad (element, pad);
-  g_free (padname);
   GST_CAMSRC_UNLOCK(camerasrc);
+  g_free (padname);
 }
 
 /**
@@ -2474,8 +2481,7 @@ gst_camerasrc_find_match_stream(Gstcamerasrc* camerasrc,
 }
 
 static gboolean
-gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc,
-                                GstCaps * caps, int stream_id, stream_config_t *stream_list)
+gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, int stream_id)
 {
   PERF_CAMERA_ATRACE();
   GstVideoInfo info;
@@ -2645,7 +2651,8 @@ gst_camerasrc_set_caps(GstCamBaseSrc *src, GstPad *pad, GstCaps *caps)
 
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
   gchar *padname = gst_pad_get_name(pad);
-  if (stream_id < 0) {
+  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM) {
+    GST_ERROR("pad %s has no stream_id %d", padname, stream_id);
     g_free (padname);
     return FALSE;
   }
@@ -2661,7 +2668,7 @@ gst_camerasrc_set_caps(GstCamBaseSrc *src, GstPad *pad, GstCaps *caps)
   }
 
   /* Get caps info from structure and match from HAL */
-  if (!gst_camerasrc_get_caps_info (camerasrc, caps, stream_id, &camerasrc->stream_list)) {
+  if (!gst_camerasrc_get_caps_info(camerasrc, caps, stream_id)) {
     g_free (padname);
     return FALSE;
   }
@@ -2984,8 +2991,10 @@ gst_camerasrc_decide_allocation(GstCamBaseSrc *bsrc,GstQuery *query, GstPad *pad
   const char* GST_MSDK_SELECT="gstMsdkSelect";
 
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
-  if (stream_id < 0)
+  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM) {
+    GST_ERROR("CameraId=%d has no stream_id %d", camerasrc->device_id, stream_id);
     return FALSE;
+  }
   GST_INFO("CameraId=%d, StreamId=%d.", camerasrc->device_id, stream_id);
 
   active = gst_buffer_pool_is_active(GST_BUFFER_POOL_CAST(camerasrc->streams[stream_id].pool));
@@ -3122,8 +3131,10 @@ gst_camerasrc_fill(GstCamPushSrc *src, GstPad *pad, GstBuffer *buf)
   GstClock *clock;
   GstClockTime base_time, timestamp, duration;
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
-  if (stream_id < 0)
+  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM) {
+    GST_ERROR("CameraId=%d has no stream_id %d", camerasrc->device_id, stream_id);
     return GST_FLOW_ERROR;
+  }
 
   GstCamerasrcBufferPool *bpool = GST_CAMERASRC_BUFFER_POOL(camerasrc->streams[stream_id].pool);
 

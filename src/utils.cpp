@@ -149,7 +149,7 @@ void CameraSrcUtils::get_stream_info_by_caps(GstCaps *caps, const char **format,
   gst_structure_get_int(structure, "height", height);
 }
 
-int CameraSrcUtils::get_stream_id_by_pad(map<string, int> streamMap, GstPad *pad)
+int CameraSrcUtils::get_stream_id_by_pad(map<string, int> &streamMap, GstPad *pad)
 {
   int stream_id = -1;
   gchar *padname = gst_pad_get_name(pad);
@@ -158,7 +158,7 @@ int CameraSrcUtils::get_stream_id_by_pad(map<string, int> streamMap, GstPad *pad
   if (iter != streamMap.end())
     stream_id = iter->second;
   else {
-    GST_ERROR("failed to get StreamId: %d", stream_id);
+    GST_ERROR("failed to find StreamId by pad: %s", padname);
   }
 
   g_free(padname);
