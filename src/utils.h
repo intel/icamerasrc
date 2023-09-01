@@ -104,7 +104,7 @@ namespace CameraSrcUtils {
 
   void get_stream_info_by_caps(GstCaps *caps, const char **format, int *width, int *height);
 
-  int get_stream_id_by_pad(map<string, int> streamMap, GstPad *pad);
+  int get_stream_id_by_pad(map<string, int> &streamMap, GstPad *pad);
 }
 
 #endif

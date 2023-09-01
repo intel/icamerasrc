@@ -812,7 +812,7 @@ gst_camerasrc_buffer_pool_alloc_buffer (GstBufferPool * bpool, GstBuffer ** buff
         goto err_alloc_buffer;
       break;
     default:
-      break;
+      goto err_alloc_buffer;
   }
 
   meta->index = pool->number_allocated;
