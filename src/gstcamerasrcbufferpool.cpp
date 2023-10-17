@@ -535,7 +535,7 @@ gst_camerasrc_alloc_dma_export(GstCamerasrcBufferPool *pool,
     return GST_FLOW_ERROR;
   }
 
-  int dmafd = dup ((*meta)->buffer->dmafd);
+  int dmafd = (*meta)->buffer->dmafd;
   if (dmafd < 0)
     goto err_get_fd;
 
@@ -588,7 +588,7 @@ gst_camerasrc_alloc_dma_import(GstCamerasrcBufferPool *pool,
 
   mem = gst_buffer_peek_memory(*alloc_buffer, 0);
 
-  (*meta)->buffer->dmafd = dup(gst_dmabuf_memory_get_fd(mem));
+  (*meta)->buffer->dmafd = gst_dmabuf_memory_get_fd(mem);
   if ((*meta)->buffer->dmafd < 0)
     goto err_get_fd;
 
