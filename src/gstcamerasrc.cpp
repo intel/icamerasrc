@@ -1483,6 +1483,7 @@ static GstPad *gst_camerasrc_request_new_pad (GstElement * element,
   req_pad = GST_CAM_BASE_SRC_CLASS (parent_class)->add_video_pad(basesrc, klass, videopad, index, padname);
   if (!req_pad) {
     GST_ERROR("CameraId=%d failed to add video source pad.", camerasrc->device_id);
+    g_free(padname);
     GST_CAMSRC_UNLOCK(camerasrc);
     return NULL;
   }
