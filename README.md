@@ -30,39 +30,51 @@ make rpm
 rpm -ivh --force --nodeps icamerasrc-*.rpm
 ```
 
+## User permission via udev rule
+To use the gstreamer plugin as a user, you need RW access to `/dev/ipu-psys0`. This can be done by
+by changing its permissions via udev rule. You will also need to add your user to the `video` group.
+
+```sh
+sudo cp 70-ipu6-psys.rules /usr/lib/udev/rules.d/
+sudo udevadm control --reload
+sudo usermod -g -G video $USER
+```
+**NOTE:** If the user is currently logged in, they will need to log out and log in again for the
+change to take effect.
+
 ## Pipeline examples
 * Ensure `${GST_PLUGIN_PATH}` includes icamerasrc installation path
 * Testpattern generator (no sensor)
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=tpg_ipu6 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
+gst-launch-1.0 icamerasrc device-name=tpg_ipu6 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
 * For laptops with 11th Gen Intel Core Procesors (with ov01a1s/hm11b1 sensor):
 ```
-sudo -E gst-launch-1.0 icamerasrc buffer-count=7 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
+gst-launch-1.0 icamerasrc buffer-count=7 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
 * For laptops with 12th/13th Gen Intel Core Procesors (with ov01a10/ov02c10/ov2740/hm2170/hi556 sensor):
 ```
-sudo -E gst-launch-1.0 icamerasrc buffer-count=7 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
+gst-launch-1.0 icamerasrc buffer-count=7 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
 * Sensor ov8856
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=ov8856-wf af-mode=2 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
+gst-launch-1.0 icamerasrc device-name=ov8856-wf af-mode=2 ! video/x-raw,format=YUY2,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
 * Sensor ov13b10
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=ov13b10-wf af-mode=2 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
+gst-launch-1.0 icamerasrc device-name=ov13b10-wf af-mode=2 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
 * Sensor ov13858
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=ov13858-uf af-mode=2 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
+gst-launch-1.0 icamerasrc device-name=ov13858-uf af-mode=2 ! video/x-raw,format=NV12,width=1280,height=720 ! videoconvert ! ximagesink
 ```
 
 * Sensor ar0234
 ```
-sudo -E gst-launch-1.0 icamerasrc device-name=ar0234 ! video/x-raw,format=NV12,width=1280,height=960 ! videoconvert ! glimagesink
+gst-launch-1.0 icamerasrc device-name=ar0234 ! video/x-raw,format=NV12,width=1280,height=960 ! videoconvert ! glimagesink
 ```
