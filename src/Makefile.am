@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2023 Intel Corporation
+#  Copyright (C) 2015-2024 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -73,6 +73,9 @@ libgsticamerasrc_la_CPPFLAGS = \
     $(GST_CFLAGS) \
     $(CAMHAL_CFLAGS) \
     $(LIBDRM_CFLAGS) \
+    $(LIBVA_CFLAGS) \
+    $(LIBVA_DRM_CFLAGS) \
+    $(LIBGSTREAMERVA_CFLAGS) \
     -std=c++11 \
     -Werror \
     $(LIBUTILS_CFLAGS) \
@@ -91,6 +94,9 @@ libgsticamerasrc_la_LIBADD = $(GST_LIBS) \
     -lgstvideo-$(GST_API_VERSION) \
     interfaces/libgsticamerainterface-$(GST_API_VERSION).la \
     $(LIBDRM_LIBS) \
+    $(LIBVA_LIBS) \
+    $(LIBVA_DRM_LIBS) \
+    $(LIBGSTREAMERVA_LIBS) \
     $(CAMHAL_LIBS)
 
 libgsticamerasrc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)

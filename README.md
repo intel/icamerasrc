@@ -28,6 +28,13 @@ sudo make install
 # build rpm package and then install
 make rpm
 rpm -ivh --force --nodeps icamerasrc-*.rpm
+
+NOTE:
+For gstreamer version > 1.22.0, add support for drm dma buffer.
+It depends on libdrm, please install it when build icamerasrc,
+if user wants to enable drm dma buffer.
+
+sudo apt install libdrm-dev
 ```
 
 ## Pipeline examples
@@ -65,4 +72,5 @@ sudo -E gst-launch-1.0 icamerasrc device-name=ov13858-uf af-mode=2 ! video/x-raw
 * Sensor ar0234
 ```
 sudo -E gst-launch-1.0 icamerasrc device-name=ar0234 ! video/x-raw,format=NV12,width=1280,height=960 ! videoconvert ! glimagesink
+sudo -E gst-launch-1.0 icamerasrc device-name=ar0234 io-mode=dma_mode ! 'video/x-raw(memory:DMABuf),drm-format=NV12,width=1280,height=960' ! glimagesink
 ```

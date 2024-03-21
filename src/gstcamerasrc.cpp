@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2015-2023 Intel Corporation
+ * Copyright (C) 2015-2024 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -1296,6 +1296,10 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_config_done = FALSE;
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].activated = TRUE;
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_usage = DEFAULT_PROP_SRC_STREAM_USAGE;
+#if GST_VERSION_MINOR >= 22
+  camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].drm_modifier =
+      DRM_FORMAT_MOD_LINEAR;
+#endif
 
   /* set default value for 3A manual control*/
   camerasrc->param = new Parameters;
@@ -2490,12 +2494,29 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, int stream
   GstStructure *structure = gst_caps_get_structure (caps, 0);
   const gchar *mimetype = gst_structure_get_name (structure);
 
-  /* raw caps, parse into video info */
-  if (!gst_video_info_from_caps (&info, caps)) {
-    GST_ERROR("CameraId=%d, StreamId=%d Caps can't be parsed",
-      camerasrc->device_id, stream_id);
-    return FALSE;
+#if GST_VERSION_MINOR >= 22
+  if (!gst_video_is_dma_drm_caps(caps)) {
+#endif
+    /* raw caps, parse into video info */
+    if (!gst_video_info_from_caps(&info, caps)) {
+      GST_ERROR("CameraId=%d, StreamId=%d Caps can't be parsed",
+                camerasrc->device_id, stream_id);
+      return FALSE;
+    }
+#if GST_VERSION_MINOR >= 22
+  } else {
+    GstVideoInfoDmaDrm drm_info;
+    if (!gst_video_info_dma_drm_from_caps(&drm_info, caps)) {
+      GST_ERROR("CameraId=%d, StreamId=%d Caps[dma_drm] can't be parsed",
+                camerasrc->device_id, stream_id);
+      return FALSE;
+    }
+    camerasrc->streams[stream_id].drm_modifier = drm_info.drm_modifier;
+    if (!gst_video_info_dma_drm_to_video_info(&drm_info, &info)) {
+      return FALSE;
+    }
   }
+#endif
   GstVideoFormat gst_fmt = GST_VIDEO_INFO_FORMAT (&info);
 
   /* parse format from caps */
@@ -2676,7 +2697,11 @@ gst_camerasrc_set_caps(GstCamBaseSrc *src, GstPad *pad, GstCaps *caps)
 
 #if GST_VERSION_MINOR >= 18
   if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
+#if GST_VERSION_MINOR >= 22
+    if (CameraSrcUtils::gst_video_info_from_dma_drm_caps(&vinfo, caps)) {
+#else
     if (gst_video_info_from_caps(&vinfo, caps)) {
+#endif
       gst_camerasrc_set_video_alignment(&vinfo, 0, 0, &align);
       gst_video_info_align(&vinfo, &align);
       GST_CAM_BASE_SRC_CLASS(parent_class)->add_video_info(src, &vinfo, TRUE);

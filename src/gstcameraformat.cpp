@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2021 Intel Corporation
+ * Copyright (C) 2015-2024 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -93,7 +93,13 @@ static void update_main_resolution(int format,
                cameraSrc_Res_Range res_range,
                vector <cameraSrc_Main_Res_Range> &main_res_range);
 static GstStructure *create_structure (guint32 fourcc);
+#if GST_VERSION_MINOR >= 22
+static void
+set_structure_to_caps(vector<cameraSrc_Main_Res_Range> main_res_range,
+                      GstCaps **caps, GstVaDisplay *display_drm);
+#else
 static void set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps **caps);
+#endif
 
 static GstStructure *
 create_structure (guint32 fourcc)
@@ -173,11 +179,59 @@ create_structure (guint32 fourcc)
   * Merge all structures into caps
   */
 #define GST_CAPS_FEATURE_MEMORY_DMABUF "memory:DMABuf"
+#if GST_VERSION_MINOR >= 22
+static void
+set_structure_to_caps(vector<cameraSrc_Main_Res_Range> main_res_range,
+                      GstCaps **caps, GstVaDisplay *display_drm)
+#else
 static void
 set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps **caps)
+#endif
 {
   GstStructure *structure = NULL;
   int feature_index = 0;
+#if GST_VERSION_MINOR >= 22
+  /* Set caps with dmabuffer */
+  for (auto &res_range : main_res_range) {
+    structure = create_structure(res_range.format);
+    if (structure) {
+      const gchar *fmt_str = gst_structure_get_string(structure, "format");
+      GstVideoFormat fmt = gst_video_format_from_string(fmt_str);
+      GValue dma_drm_fmts = G_VALUE_INIT;
+      g_value_init(&dma_drm_fmts, GST_TYPE_LIST);
+      if (!CameraSrcUtils::_dma_fmt_to_dma_drm_fmts(display_drm, fmt,
+                                                    &dma_drm_fmts) ||
+          gst_value_list_get_size(&dma_drm_fmts) <= 0) {
+        gst_structure_free(structure);
+        g_value_unset(&dma_drm_fmts);
+        continue;
+      }
+      gst_structure_set(structure, "format", G_TYPE_STRING, "DMA_DRM", NULL);
+      gst_structure_set_value(structure, "drm-format", &dma_drm_fmts);
+      g_value_unset(&dma_drm_fmts);
+      /* If has only one resolution */
+      if (res_range.range.max_w == res_range.range.min_w &&
+          res_range.range.max_h == res_range.range.min_h)
+        gst_structure_set(structure, "width", G_TYPE_INT, res_range.range.max_w,
+                          "height", G_TYPE_INT, res_range.range.max_h,
+                          "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT,
+                          1, "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+                          NULL);
+      else
+        gst_structure_set(structure, "width", GST_TYPE_INT_RANGE,
+                          res_range.range.min_w, res_range.range.max_w,
+                          "height", GST_TYPE_INT_RANGE, res_range.range.min_h,
+                          res_range.range.max_h, "framerate",
+                          GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1,
+                          "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1, NULL);
+      *caps = gst_caps_merge_structure(*caps, structure);
+      gst_caps_set_features(
+          *caps, feature_index,
+          gst_caps_features_new(GST_CAPS_FEATURE_MEMORY_DMABUF, NULL));
+      feature_index++;
+    }
+  }
+#else
   /* Set caps with dmabuffer */
   for (auto&res_range : main_res_range) {
     structure = create_structure (res_range.format);
@@ -204,6 +258,7 @@ set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps 
       feature_index++;
     }
   }
+#endif
   /* Set caps with userptr */
   for (auto&res_range : main_res_range) {
     structure = create_structure (res_range.format);
@@ -329,7 +384,19 @@ GstCaps *gst_camerasrc_get_all_caps ()
   vector <camera_resolution_t> fmt_res;
   vector <cameraSrc_Main_Res_Range> main_res_range;
 
-  static GstCaps *caps = gst_caps_new_empty ();
+  static GstCaps *caps = NULL;
+  if (caps != NULL) {
+    return gst_caps_simplify(caps);
+  }
+  caps = gst_caps_new_empty();
+#if GST_VERSION_MINOR >= 22
+  GstVaDisplay *display_drm = NULL;
+  display_drm = gst_va_display_drm_new_from_path("/dev/dri/renderD128");
+  if (NULL == display_drm) {
+    GST_ERROR("Couldn't create a VA DRM display");
+    return NULL;
+  }
+#endif
   int count = get_number_of_cameras();
 
   for(int i = 0; i < count; i++) {
@@ -341,6 +408,12 @@ GstCaps *gst_camerasrc_get_all_caps ()
     if (ret != 0) {
       GST_ERROR("failed to get camera info from libcamhal");
       gst_caps_unref(caps);
+#if GST_VERSION_MINOR >= 22
+      if (display_drm) {
+        gst_object_unref(display_drm);
+        display_drm = NULL;
+      }
+#endif
       return NULL;
     }
     info.capability->getSupportedStreamConfig(configs);
@@ -349,12 +422,28 @@ GstCaps *gst_camerasrc_get_all_caps ()
     if (ret != 0) {
         GST_ERROR("failed to get format info from libcamhal");
         gst_caps_unref(caps);
+#if GST_VERSION_MINOR >= 22
+        if (display_drm) {
+          gst_object_unref(display_drm);
+          display_drm = NULL;
+        }
+#endif
         return NULL;
     }
   }
 
+#if GST_VERSION_MINOR >= 22
+  set_structure_to_caps(main_res_range, &caps, display_drm);
+#else
   set_structure_to_caps(main_res_range, &caps);
+#endif
   main_res_range.clear();
+#if GST_VERSION_MINOR >= 22
+  if (display_drm) {
+    gst_object_unref(display_drm);
+    display_drm = NULL;
+  }
+#endif
 
   return gst_caps_simplify(caps);
 }

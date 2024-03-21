@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2022 Intel Corporation
+ * Copyright (C) 2015-2024 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -128,6 +128,12 @@ gst_camerasrc_buffer_pool_finalize (GObject * object)
   PERF_CAMERA_ATRACE();
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL (object);
   GST_INFO("CameraId=%d, StreamId=%d.", pool->src->device_id, pool->stream_id);
+#if GST_VERSION_MINOR >= 22
+  if (pool->display_drm) {
+    gst_object_unref(pool->display_drm);
+    pool->display_drm = NULL;
+  }
+#endif
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -158,6 +164,10 @@ gst_camerasrc_buffer_pool_init (GstCamerasrcBufferPool * pool)
 #if GST_VERSION_MINOR >= 18
   pool->need_alignment = FALSE;
 #endif
+
+#if GST_VERSION_MINOR >= 22
+  pool->display_drm = NULL;
+#endif
 }
 
 GstBufferPool *
@@ -176,7 +186,11 @@ gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc,
 
   if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
 #if GST_VERSION_MINOR >= 18
+#if GST_VERSION_MINOR >= 22
+    if (!CameraSrcUtils::gst_video_info_from_dma_drm_caps(&info, caps)) {
+#else
     if (!gst_video_info_from_caps(&info, caps)) {
+#endif
       GST_ERROR("CameraId=%d, StreamId=%d failed to get video info from caps.",
          camerasrc->device_id, stream_id);
       return NULL;
@@ -264,7 +278,11 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
   }
 
 #if GST_VERSION_MINOR >= 18
+#if GST_VERSION_MINOR >= 22
+  if (!CameraSrcUtils::gst_video_info_from_dma_drm_caps(&video_info, caps)) {
+#else
   if (!gst_video_info_from_caps (&video_info, caps)) {
+#endif
     GST_ERROR("CameraId=%d, StreamId=%d failed to get video info from caps.",
       camerasrc->device_id, pool->stream_id);
     return FALSE;
@@ -282,7 +300,19 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
   pool->allocator = NULL;
 
   if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_EXPORT || camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
+#if GST_VERSION_MINOR >= 22
+    if (NULL == pool->display_drm) {
+      pool->display_drm =
+          gst_va_display_drm_new_from_path("/dev/dri/renderD128");
+      if (NULL == pool->display_drm) {
+        GST_ERROR("Couldn't create a VA DRM display");
+        return FALSE;
+      }
+    }
+    pool->allocator = gst_va_dmabuf_allocator_new(pool->display_drm);
+#else
     pool->allocator = gst_dmabuf_allocator_new ();
+#endif
   } else {
     pool->allocator = allocator;
   }
@@ -633,8 +663,8 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
   int dmafd = -1;
   int intel_fd = -1;
   int size = 0;
-  drm_intel_bufmgr *bufmgr;
-  drm_intel_bo *drm_bo;
+  drm_intel_bufmgr *bufmgr = NULL;
+  drm_intel_bo *drm_bo = NULL;
   Gstcamerasrc *src = pool->src;
 #if GST_VERSION_MINOR >= 18
   GstVideoInfo info = src->streams[pool->stream_id].info;
@@ -649,6 +679,10 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
   (*meta)->buffer = (camera_buffer_t *)calloc(1, sizeof(camera_buffer_t));
   if ((*meta)->buffer == NULL)
     return GST_FLOW_ERROR;
+
+#if GST_VERSION_MINOR >= 22
+  if (!GST_CAM_BASE_SRC(src)->is_dma_drm_caps) {
+#endif
 
   intel_fd = open("/dev/dri/renderD128", O_RDWR);
 
@@ -700,6 +734,35 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
   close(intel_fd);
   drm_intel_bufmgr_destroy(bufmgr);
   drm_intel_bo_unreference(drm_bo);
+#if GST_VERSION_MINOR >= 22
+  } else {
+    if (NULL == pool->display_drm) {
+      GST_ERROR("Couldn't create a VA DRM display");
+      return GST_FLOW_ERROR;
+    }
+    VADRMPRIMESurfaceDescriptor desc = {
+        0,
+    };
+    VASurfaceID surface;
+    guint64 drm_modifier = src->streams[pool->stream_id].drm_modifier;
+    if (!CameraSrcUtils::_va_create_surface_and_export_to_dmabuf(
+            pool->display_drm, VA_SURFACE_ATTRIB_USAGE_HINT_GENERIC,
+            &drm_modifier, 1, &info, &surface, &desc))
+      return GST_FLOW_ERROR;
+    for (guint32 i = 0; i < desc.num_objects; i++) {
+      gint fd = desc.objects[i].fd;
+      gsize size = CameraSrcUtils::_get_fd_size(fd);
+      GST_DEBUG("CameraId=%d, StreamId=%d DMA import buffer fd=%d.",
+                src->device_id, pool->stream_id, fd);
+      (*meta)->buffer->dmafd = fd;
+      (*meta)->buffer->s = src->s[pool->stream_id];
+      (*meta)->buffer->s.memType = V4L2_MEMORY_DMABUF;
+      (*meta)->buffer->flags = BUFFER_FLAG_DMA_EXPORT;
+      GstMemory *mem = gst_dmabuf_allocator_alloc(pool->allocator, fd, size);
+      gst_buffer_append_memory(*alloc_buffer, mem);
+    }
+  }
+#endif
 
   return GST_FLOW_OK;
 
