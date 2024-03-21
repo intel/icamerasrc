@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2023 Intel Corporation
+#  Copyright (C) 2015-2024 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -192,6 +192,27 @@ PKG_CHECK_MODULES(LIBDRM, [libdrm libdrm_intel], [
   AC_SUBST(LIBDRM_LIBS)
 ], [
   AC_MSG_ERROR([Cannot find libdrm pkgconfig])
+])
+
+PKG_CHECK_MODULES(LIBGSTREAMERVA, [gstreamer-va-1.0], [
+  AC_SUBST(LIBGSTREAMERVA_CFLAGS)
+  AC_SUBST(LIBGSTREAMERVA_LIBS)
+], [
+  AC_MSG_WARN([Cannot find gstreamer-va-1.0 pkgconfig])
+])
+
+PKG_CHECK_MODULES(LIBVA, [libva], [
+  AC_SUBST(LIBVA_CFLAGS)
+  AC_SUBST(LIBVA_LIBS)
+], [
+  AC_MSG_WARN([Cannot find libva pkgconfig])
+])
+
+PKG_CHECK_MODULES(LIBVA_DRM, [libva-drm], [
+  AC_SUBST(LIBVA_DRM_CFLAGS)
+  AC_SUBST(LIBVA_DRM_LIBS)
+], [
+  AC_MSG_WARN([Cannot find libva-drm pkgconfig])
 ])
 
 dnl check if compiler understands -Wall (if yes, add -Wall to GST_CFLAGS)

@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2021 Intel Corporation
+ * Copyright (C) 2015-2024 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -446,6 +446,9 @@ gst_cam_base_src_init(GstCamBaseSrc *basesrc, GstCamBaseSrcClass *klass)
 #if GST_VERSION_MINOR >= 18
     gst_video_info_init(&basesrc->srcpad_info);
     basesrc->is_info_change = FALSE;
+#endif
+#if GST_VERSION_MINOR >= 22
+    basesrc->is_dma_drm_caps = FALSE;
 #endif
 
     basesrc->blocksize = DEFAULT_BLOCKSIZE;
@@ -3734,9 +3737,17 @@ gst_cam_base_src_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
 
     caps = gst_pad_get_current_caps (pad);
 
+#if GST_VERSION_MINOR >= 22
+    basesrc->is_dma_drm_caps = gst_video_is_dma_drm_caps(caps);
+#endif
+
 #if GST_VERSION_MINOR >= 18
     if (basesrc->is_info_change) {
+#if GST_VERSION_MINOR >= 22
+      if (!CameraSrcUtils::gst_video_info_from_dma_drm_caps(&vinfo, caps))
+#else
       if (!gst_video_info_from_caps(&vinfo, caps))
+#endif
         GST_DEBUG_OBJECT (basesrc, "Failed to get video info from caps.");
       else {
         if (!gst_video_info_is_equal(&basesrc->srcpad_info, &vinfo))
@@ -3749,6 +3760,11 @@ gst_cam_base_src_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
     else
 #endif
       result = gst_cam_base_src_prepare_allocation (basesrc, caps, pad);
+
+#if GST_VERSION_MINOR >= 18
+    if (tmp_caps)
+      gst_caps_unref (tmp_caps);
+#endif
 
     if (caps)
       gst_caps_unref (caps);
