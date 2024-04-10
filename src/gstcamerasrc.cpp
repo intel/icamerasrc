@@ -1296,7 +1296,7 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_config_done = FALSE;
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].activated = TRUE;
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_usage = DEFAULT_PROP_SRC_STREAM_USAGE;
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].drm_modifier =
       DRM_FORMAT_MOD_LINEAR;
 #endif
@@ -2494,7 +2494,7 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, int stream
   GstStructure *structure = gst_caps_get_structure (caps, 0);
   const gchar *mimetype = gst_structure_get_name (structure);
 
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
   if (!gst_video_is_dma_drm_caps(caps)) {
 #endif
     /* raw caps, parse into video info */
@@ -2503,7 +2503,7 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, int stream
                 camerasrc->device_id, stream_id);
       return FALSE;
     }
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
   } else {
     GstVideoInfoDmaDrm drm_info;
     if (!gst_video_info_dma_drm_from_caps(&drm_info, caps)) {
@@ -2697,7 +2697,7 @@ gst_camerasrc_set_caps(GstCamBaseSrc *src, GstPad *pad, GstCaps *caps)
 
 #if GST_VERSION_MINOR >= 18
   if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
     if (CameraSrcUtils::gst_video_info_from_dma_drm_caps(&vinfo, caps)) {
 #else
     if (gst_video_info_from_caps(&vinfo, caps)) {

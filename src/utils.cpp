@@ -165,7 +165,7 @@ int CameraSrcUtils::get_stream_id_by_pad(map<string, int> &streamMap, GstPad *pa
   return stream_id;
 }
 
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
 
 #define VA_NSB_FIRST 0 /* No Significant Bit  */
 

@@ -463,7 +463,7 @@ struct _GstStreamInfo
   /* Buffer config */
   guint bpl;
   GstVideoInfo info;
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
   /* drm modifier used currently after negotiated. */
   guint64 drm_modifier;
 #endif
