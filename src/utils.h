@@ -55,11 +55,12 @@
 #include <linux/videodev2.h>
 #include <map>
 
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
 #include <va/va_drmcommon.h>
 #include <drm_fourcc.h>
 #define GST_USE_UNSTABLE_API
 #include <gst/va/gstva.h>
+#include <gst/video/video-info-dma.h>
 #endif
 
 using namespace std;
@@ -113,7 +114,7 @@ namespace CameraSrcUtils {
 
   int get_stream_id_by_pad(map<string, int> &streamMap, GstPad *pad);
 
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
 
   gboolean gst_video_info_from_dma_drm_caps(GstVideoInfo *info,
                                             const GstCaps *caps);

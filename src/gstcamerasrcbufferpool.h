@@ -49,9 +49,7 @@
 #include "gstcampushsrc.h"
 #include "gstcamerasrc.h"
 
-#if GST_VERSION_MINOR >= 22
 #include "utils.h"
-#endif
 
 typedef struct _GstCamerasrcBufferPool GstCamerasrcBufferPool;//in use of qbuf&dqbuf
 typedef struct _GstCamerasrcBufferPoolClass GstCamerasrcBufferPoolClass;//in use of _class_init
@@ -92,7 +90,7 @@ struct _GstCamerasrcBufferPool
   GstVideoAlignment alignment;
 #endif
 
-#if GST_VERSION_MINOR >= 22
+#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
   /* operate on /dev/dri/renderD128 */
   GstVaDisplay *display_drm;
 #endif
