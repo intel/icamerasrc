@@ -59,12 +59,12 @@ libgsticamerainterface_@GST_API_VERSION@_la_CPPFLAGS += -DCHROME_SLIM_CAMHAL
 endif
 
 # for hardening-check
-libgsticamerainterface_@GST_API_VERSION@_la_CPPFLAGS += -fstack-protector-all -fPIE -fPIC -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
+libgsticamerainterface_@GST_API_VERSION@_la_CPPFLAGS += -fstack-protector-all -fPIE -fPIC -Wformat -Wformat-security
 
 libgsticamerainterface_@GST_API_VERSION@_la_LIBADD = $(GST_LIBS) $(CAMHAL_LIBS)
 
 # for hardening-check
-libgsticamerainterface_@GST_API_VERSION@_la_LDFLAGS = -fPIE -fPIC -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now -version-info $(LT_VERSION_INFO)
+libgsticamerainterface_@GST_API_VERSION@_la_LDFLAGS = -fPIE -fPIC -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now -version-info $(LT_VERSION_INFO)
 
 libgsticamerainterfaceincludedir = $(includedir)/gstreamer-@GST_API_VERSION@/gst/icamera
 

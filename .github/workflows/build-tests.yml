@@ -8,7 +8,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: ["ubuntu:22.04", "ubuntu:20.04"]
+        os: ["ubuntu:24.04", "ubuntu:22.04", "ubuntu:20.04"]
 
     runs-on: ubuntu-latest
     container: ${{ matrix.os }}
@@ -77,6 +77,18 @@ jobs:
         env:
           CHROME_SLIM_CAMHAL: ON
         run: |
+          case "${{ matrix.os }}" in
+            ("ubuntu:24.04")
+              fortify_level=3
+              ;;
+            ("ubuntu:22.04"|"ubuntu:20.04")
+              fortify_level=2
+              ;;
+            (*)
+              echo "${{ matrix.os }} is unsupported yet. Please find the default fortify_level in /usr/share/perl5/Dpkg/Vendor/Ubuntu.pm or /usr/share/perl5/Dpkg/Vendor/Debian.pm."
+              exit 1
+              ;;
+          esac
           cd "${GITHUB_WORKSPACE}/icamerasrc"
 
-          ./autogen.sh && make -j$(nproc) install
+          CPPFLAGS="-D_FORTIFY_SOURCE=$fortify_level" ./autogen.sh && make -j$(nproc) install
