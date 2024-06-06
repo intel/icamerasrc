@@ -89,6 +89,19 @@ gst_camerasrc_meta_api_get_type (void)
   return type;
 }
 
+static gboolean
+gst_camerasrc_meta_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
+{
+  GstCamerasrcMeta *emeta = (GstCamerasrcMeta *) meta;
+
+  emeta->index = 0;
+  emeta->mem = NULL;
+  emeta->buffer = NULL;
+
+  return TRUE;
+}
+
+
 const GstMetaInfo *
 gst_camerasrc_meta_get_info (void)
 {
@@ -98,7 +111,7 @@ gst_camerasrc_meta_get_info (void)
   if (g_once_init_enter (&meta_info)) {
     const GstMetaInfo *meta =
         gst_meta_register (gst_camerasrc_meta_api_get_type (), "GstCamerasrcMeta",
-        sizeof (GstCamerasrcMeta), (GstMetaInitFunction) NULL,
+        sizeof (GstCamerasrcMeta), gst_camerasrc_meta_init,
         (GstMetaFreeFunction) NULL, (GstMetaTransformFunction) NULL);
     g_once_init_leave (&meta_info, meta);
   }

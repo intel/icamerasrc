@@ -225,6 +225,33 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([ ], [ ])], [
 ], [
   AC_MSG_RESULT([no])
 ])
+CFLAGS="$save_CFLAGS"
+
+AC_DEFUN([AC_CHECK_FORTIFY_SOURCE], [
+  AC_MSG_CHECKING([for _FORTIFY_SOURCE value with -O2])
+  old_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS -O2"
+  AC_RUN_IFELSE(
+    [AC_LANG_SOURCE([[
+      #include <stdio.h>
+      #ifndef _FORTIFY_SOURCE
+      #error
+      #endif
+      int main() { printf("%d\n", _FORTIFY_SOURCE); return 0; }
+    ]])],
+    [
+      fortify_source_value=`./conftest$EXEEXT`
+    ],
+    [
+      AC_MSG_RESULT([no])
+      fortify_source_value=0
+    ]
+  )
+  CFLAGS="$old_CFLAGS"
+  AC_SUBST([fortify_source_value])
+])
+AC_CHECK_FORTIFY_SOURCE
+AM_CONDITIONAL([NO_FORTIFY_SOURCE], [test "x$fortify_source_value" = "x0"])
 
 dnl set the plugindir where plugins should be installed (for src/Makefile.am)
 if test "x${prefix}" = "x$HOME"; then

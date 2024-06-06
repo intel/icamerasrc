@@ -385,15 +385,14 @@ GstCaps *gst_camerasrc_get_all_caps ()
   vector <cameraSrc_Main_Res_Range> main_res_range;
 
   static GstCaps *caps = NULL;
-  if (caps != NULL) {
-    return gst_caps_simplify(caps);
+  if (caps != NULL && GST_IS_CAPS(caps)) {
+    return caps;
   }
-  caps = gst_caps_new_empty();
 #if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
   GstVaDisplay *display_drm = NULL;
   display_drm = gst_va_display_drm_new_from_path("/dev/dri/renderD128");
   if (NULL == display_drm) {
-    GST_ERROR("Couldn't create a VA DRM display");
+    g_printerr("Couldn't create a VA DRM display");
     return NULL;
   }
 #endif
@@ -406,8 +405,7 @@ GstCaps *gst_camerasrc_get_all_caps ()
     //get configuration of camera
     int ret = get_camera_info(i, info);
     if (ret != 0) {
-      GST_ERROR("failed to get camera info from libcamhal");
-      gst_caps_unref(caps);
+      g_printerr("failed to get camera info from libcamhal");
 #if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
       if (display_drm) {
         gst_object_unref(display_drm);
@@ -420,8 +418,7 @@ GstCaps *gst_camerasrc_get_all_caps ()
 
     ret = register_format_and_resolution(configs, fmt_res, main_res_range);
     if (ret != 0) {
-        GST_ERROR("failed to get format info from libcamhal");
-        gst_caps_unref(caps);
+        g_printerr("failed to get format info from libcamhal");
 #if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
         if (display_drm) {
           gst_object_unref(display_drm);
@@ -432,11 +429,13 @@ GstCaps *gst_camerasrc_get_all_caps ()
     }
   }
 
+  caps = gst_caps_new_empty();
 #if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
   set_structure_to_caps(main_res_range, &caps, display_drm);
 #else
   set_structure_to_caps(main_res_range, &caps);
 #endif
+  caps = gst_caps_simplify(caps);
   main_res_range.clear();
 #if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
   if (display_drm) {
@@ -445,5 +444,5 @@ GstCaps *gst_camerasrc_get_all_caps ()
   }
 #endif
 
-  return gst_caps_simplify(caps);
+  return caps;
 }
