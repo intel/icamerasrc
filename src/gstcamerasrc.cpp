@@ -177,7 +177,7 @@ G_DEFINE_TYPE_WITH_CODE (Gstcamerasrc, gst_camerasrc, GST_TYPE_CAM_PUSH_SRC,
 G_DEFINE_TYPE_WITH_CODE (Gstcamerasrc, gst_camerasrc, GST_TYPE_CAM_PUSH_SRC,
         G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_3A_IF, gst_camerasrc_3a_interface_init);
         G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_ISP_IF, gst_camerasrc_isp_interface_init);
-        G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_DEWARPING_IF, gst_camerasrc_dewarping_interface_init) );
+        G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_DEWARPING_IF, gst_camerasrc_dewarping_interface_init));
 #endif
 
 static void gst_camerasrc_set_property (GObject * object, guint prop_id,
@@ -922,13 +922,13 @@ static GstStaticPadTemplate video_pad_template = GST_STATIC_PAD_TEMPLATE(
   GST_CAM_BASE_VIDEO_PAD_NAMES,
   GST_PAD_SRC,
   GST_PAD_REQUEST,
-  gst_camerasrc_get_all_caps());
+  {gst_camerasrc_get_all_caps()});
 
 static GstStaticPadTemplate still_pad_template = GST_STATIC_PAD_TEMPLATE(
   GST_CAM_BASE_STILL_PAD_NAMES,
   GST_PAD_SRC,
   GST_PAD_REQUEST,
-  gst_camerasrc_get_all_caps());
+  {gst_camerasrc_get_all_caps()});
 
 static void
 gst_camerasrc_class_init (GstcamerasrcClass * klass)
@@ -952,6 +952,8 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
   gstelement_class->change_state = GST_DEBUG_FUNCPTR(gst_camerasrc_change_state);
   gstelement_class->request_new_pad = GST_DEBUG_FUNCPTR(gst_camerasrc_request_new_pad);
   gstelement_class->release_pad = GST_DEBUG_FUNCPTR(gst_camerasrc_release_pad);
+
+  GST_DEBUG_CATEGORY_INIT(gst_camerasrc_debug, "icamerasrc", 0, "camerasrc source element");
 
   g_object_class_install_property(gobject_class,PROP_BUFFERCOUNT,
       g_param_spec_int("buffer-count","buffer count","The number of buffer to allocate when do the streaming",
@@ -1227,8 +1229,6 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
   basesrc_class->negotiate = GST_DEBUG_FUNCPTR(gst_camerasrc_negotiate);
   basesrc_class->decide_allocation = GST_DEBUG_FUNCPTR(gst_camerasrc_decide_allocation);
   pushsrc_class->fill = GST_DEBUG_FUNCPTR(gst_camerasrc_fill);
-
-  GST_DEBUG_CATEGORY_INIT (gst_camerasrc_debug, "icamerasrc", 0, "camerasrc source element");
 }
 
 static void
