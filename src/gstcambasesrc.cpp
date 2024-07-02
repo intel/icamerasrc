@@ -3639,11 +3639,12 @@ gst_cam_base_src_default_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
   gboolean result = FALSE;
   GstCaps *current_caps = NULL;
 
-    current_caps = gst_pad_get_current_caps (pad);
+  current_caps = gst_pad_get_current_caps (pad);
 
   if (current_caps){
-        GST_DEBUG_OBJECT (basesrc, "straight return without negotiate");
-          return TRUE;
+    GST_DEBUG_OBJECT (basesrc, "straight return without negotiate");
+    gst_caps_unref (current_caps);
+    return TRUE;
   }
 
   /* first see what is possible on our source pad */
