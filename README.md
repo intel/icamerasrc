@@ -12,7 +12,7 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
 
 ## Build instructions:
 * Prerequisites: ipu6-camera-bins and ipu6-camera-hal installed 
-* Prerequisites: libdrm-dev
+* Prerequisites: libdrm-dev libva-dev libgstreamer-plugins-bad1.0-dev
 
 ```sh
 export CHROME_SLIM_CAMHAL=ON
