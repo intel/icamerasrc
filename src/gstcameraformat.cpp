@@ -191,44 +191,46 @@ set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps 
   GstStructure *structure = NULL;
   int feature_index = 0;
 #if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
-  /* Set caps with dmabuffer */
-  for (auto &res_range : main_res_range) {
-    structure = create_structure(res_range.format);
-    if (structure) {
-      const gchar *fmt_str = gst_structure_get_string(structure, "format");
-      GstVideoFormat fmt = gst_video_format_from_string(fmt_str);
-      GValue dma_drm_fmts = G_VALUE_INIT;
-      g_value_init(&dma_drm_fmts, GST_TYPE_LIST);
-      if (!CameraSrcUtils::_dma_fmt_to_dma_drm_fmts(display_drm, fmt,
-                                                    &dma_drm_fmts) ||
-          gst_value_list_get_size(&dma_drm_fmts) <= 0) {
-        gst_structure_free(structure);
+  if (display_drm) {
+    /* Set caps with dmabuffer */
+    for (auto &res_range : main_res_range) {
+      structure = create_structure(res_range.format);
+      if (structure) {
+        const gchar *fmt_str = gst_structure_get_string(structure, "format");
+        GstVideoFormat fmt = gst_video_format_from_string(fmt_str);
+        GValue dma_drm_fmts = G_VALUE_INIT;
+        g_value_init(&dma_drm_fmts, GST_TYPE_LIST);
+        if (!CameraSrcUtils::_dma_fmt_to_dma_drm_fmts(display_drm, fmt,
+                                                      &dma_drm_fmts) ||
+            gst_value_list_get_size(&dma_drm_fmts) <= 0) {
+          gst_structure_free(structure);
+          g_value_unset(&dma_drm_fmts);
+          continue;
+        }
+        gst_structure_set(structure, "format", G_TYPE_STRING, "DMA_DRM", NULL);
+        gst_structure_set_value(structure, "drm-format", &dma_drm_fmts);
         g_value_unset(&dma_drm_fmts);
-        continue;
+        /* If has only one resolution */
+        if (res_range.range.max_w == res_range.range.min_w &&
+            res_range.range.max_h == res_range.range.min_h)
+          gst_structure_set(structure, "width", G_TYPE_INT, res_range.range.max_w,
+                            "height", G_TYPE_INT, res_range.range.max_h,
+                            "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT,
+                            1, "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+                            NULL);
+        else
+          gst_structure_set(structure, "width", GST_TYPE_INT_RANGE,
+                            res_range.range.min_w, res_range.range.max_w,
+                            "height", GST_TYPE_INT_RANGE, res_range.range.min_h,
+                            res_range.range.max_h, "framerate",
+                            GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1,
+                            "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1, NULL);
+        *caps = gst_caps_merge_structure(*caps, structure);
+        gst_caps_set_features(
+            *caps, feature_index,
+            gst_caps_features_new(GST_CAPS_FEATURE_MEMORY_DMABUF, NULL));
+        feature_index++;
       }
-      gst_structure_set(structure, "format", G_TYPE_STRING, "DMA_DRM", NULL);
-      gst_structure_set_value(structure, "drm-format", &dma_drm_fmts);
-      g_value_unset(&dma_drm_fmts);
-      /* If has only one resolution */
-      if (res_range.range.max_w == res_range.range.min_w &&
-          res_range.range.max_h == res_range.range.min_h)
-        gst_structure_set(structure, "width", G_TYPE_INT, res_range.range.max_w,
-                          "height", G_TYPE_INT, res_range.range.max_h,
-                          "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT,
-                          1, "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-                          NULL);
-      else
-        gst_structure_set(structure, "width", GST_TYPE_INT_RANGE,
-                          res_range.range.min_w, res_range.range.max_w,
-                          "height", GST_TYPE_INT_RANGE, res_range.range.min_h,
-                          res_range.range.max_h, "framerate",
-                          GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1,
-                          "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1, NULL);
-      *caps = gst_caps_merge_structure(*caps, structure);
-      gst_caps_set_features(
-          *caps, feature_index,
-          gst_caps_features_new(GST_CAPS_FEATURE_MEMORY_DMABUF, NULL));
-      feature_index++;
     }
   }
 #else
@@ -392,8 +394,7 @@ GstCaps *gst_camerasrc_get_all_caps ()
   GstVaDisplay *display_drm = NULL;
   display_drm = gst_va_display_drm_new_from_path("/dev/dri/renderD128");
   if (NULL == display_drm) {
-    g_printerr("Couldn't create a VA DRM display");
-    return NULL;
+    g_warning("Couldn't create a VA DRM display");
   }
 #endif
   int count = get_number_of_cameras();
