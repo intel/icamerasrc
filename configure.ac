@@ -245,6 +245,11 @@ AC_DEFUN([AC_CHECK_FORTIFY_SOURCE], [
     [
       AC_MSG_RESULT([no])
       fortify_source_value=0
+    ],
+    [
+      AC_MSG_CHECKING([for cross-compiling _FORTIFY_SOURCE depends on toolchain])
+      AC_MSG_RESULT([no])
+      fortify_source_value=0
     ]
   )
   CFLAGS="$old_CFLAGS"
