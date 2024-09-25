@@ -44,7 +44,7 @@
 #define LOG_TAG "GstCameraSrcBufferPool"
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
 
 #include <sys/mman.h>
@@ -141,7 +141,7 @@ gst_camerasrc_buffer_pool_finalize (GObject * object)
   PERF_CAMERA_ATRACE();
   GstCamerasrcBufferPool *pool = GST_CAMERASRC_BUFFER_POOL (object);
   GST_INFO("CameraId=%d, StreamId=%d.", pool->src->device_id, pool->stream_id);
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   if (pool->display_drm) {
     gst_object_unref(pool->display_drm);
     pool->display_drm = NULL;
@@ -178,7 +178,7 @@ gst_camerasrc_buffer_pool_init (GstCamerasrcBufferPool * pool)
   pool->need_alignment = FALSE;
 #endif
 
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   pool->display_drm = NULL;
 #endif
 }
@@ -199,7 +199,7 @@ gst_camerasrc_buffer_pool_new (Gstcamerasrc *camerasrc,
 
   if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
 #if GST_VERSION_MINOR >= 18
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
     if (!CameraSrcUtils::gst_video_info_from_dma_drm_caps(&info, caps)) {
 #else
     if (!gst_video_info_from_caps(&info, caps)) {
@@ -291,7 +291,7 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
   }
 
 #if GST_VERSION_MINOR >= 18
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   if (!CameraSrcUtils::gst_video_info_from_dma_drm_caps(&video_info, caps)) {
 #else
   if (!gst_video_info_from_caps (&video_info, caps)) {
@@ -313,7 +313,7 @@ gst_camerasrc_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * conf
   pool->allocator = NULL;
 
   if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_EXPORT || camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
     if (NULL == pool->display_drm) {
       pool->display_drm =
           gst_va_display_drm_new_from_path("/dev/dri/renderD128");
@@ -693,7 +693,7 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
   if ((*meta)->buffer == NULL)
     return GST_FLOW_ERROR;
 
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   if (!GST_CAM_BASE_SRC(src)->is_dma_drm_caps) {
 #endif
 
@@ -747,7 +747,7 @@ gst_camerasrc_alloc_dma_mode(GstCamerasrcBufferPool *pool,
   close(intel_fd);
   drm_intel_bufmgr_destroy(bufmgr);
   drm_intel_bo_unreference(drm_bo);
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   } else {
     if (NULL == pool->display_drm) {
       GST_ERROR("Couldn't create a VA DRM display");

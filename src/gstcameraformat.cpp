@@ -44,7 +44,7 @@
 #define LOG_TAG "GstCameraFormat"
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
 
 #include <string.h>
@@ -93,7 +93,7 @@ static void update_main_resolution(int format,
                cameraSrc_Res_Range res_range,
                vector <cameraSrc_Main_Res_Range> &main_res_range);
 static GstStructure *create_structure (guint32 fourcc);
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
 static void
 set_structure_to_caps(vector<cameraSrc_Main_Res_Range> main_res_range,
                       GstCaps **caps, GstVaDisplay *display_drm);
@@ -179,7 +179,7 @@ create_structure (guint32 fourcc)
   * Merge all structures into caps
   */
 #define GST_CAPS_FEATURE_MEMORY_DMABUF "memory:DMABuf"
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
 static void
 set_structure_to_caps(vector<cameraSrc_Main_Res_Range> main_res_range,
                       GstCaps **caps, GstVaDisplay *display_drm)
@@ -190,7 +190,7 @@ set_structure_to_caps(vector <cameraSrc_Main_Res_Range> main_res_range, GstCaps 
 {
   GstStructure *structure = NULL;
   int feature_index = 0;
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   if (display_drm) {
     /* Set caps with dmabuffer */
     for (auto &res_range : main_res_range) {
@@ -390,7 +390,7 @@ GstCaps *gst_camerasrc_get_all_caps ()
   if (caps != NULL && GST_IS_CAPS(caps)) {
     return caps;
   }
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   GstVaDisplay *display_drm = NULL;
   display_drm = gst_va_display_drm_new_from_path("/dev/dri/renderD128");
   if (NULL == display_drm) {
@@ -407,7 +407,7 @@ GstCaps *gst_camerasrc_get_all_caps ()
     int ret = get_camera_info(i, info);
     if (ret != 0) {
       g_printerr("failed to get camera info from libcamhal");
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
       if (display_drm) {
         gst_object_unref(display_drm);
         display_drm = NULL;
@@ -420,7 +420,7 @@ GstCaps *gst_camerasrc_get_all_caps ()
     ret = register_format_and_resolution(configs, fmt_res, main_res_range);
     if (ret != 0) {
         g_printerr("failed to get format info from libcamhal");
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
         if (display_drm) {
           gst_object_unref(display_drm);
           display_drm = NULL;
@@ -431,14 +431,14 @@ GstCaps *gst_camerasrc_get_all_caps ()
   }
 
   caps = gst_caps_new_empty();
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   set_structure_to_caps(main_res_range, &caps, display_drm);
 #else
   set_structure_to_caps(main_res_range, &caps);
 #endif
   caps = gst_caps_simplify(caps);
   main_res_range.clear();
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   if (display_drm) {
     gst_object_unref(display_drm);
     display_drm = NULL;

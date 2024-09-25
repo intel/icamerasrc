@@ -44,7 +44,7 @@
 #define LOG_TAG "GstCameraDeinterlace"
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
 
 #include <sys/mman.h>

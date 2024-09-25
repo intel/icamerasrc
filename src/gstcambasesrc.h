@@ -135,7 +135,7 @@ struct _GstCamBaseSrc {
   GstVideoInfo   srcpad_info;
   gboolean       is_info_change;
 #endif
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   /* indicate current caps is dma_drm type for io_mode=dma_mode. */
   bool is_dma_drm_caps;
 #endif

@@ -90,7 +90,7 @@ struct _GstCamerasrcBufferPool
   GstVideoAlignment alignment;
 #endif
 
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
   /* operate on /dev/dri/renderD128 */
   GstVaDisplay *display_drm;
 #endif

@@ -42,7 +42,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
 
 #include "gstcambasesrc.h"
@@ -447,7 +447,7 @@ gst_cam_base_src_init(GstCamBaseSrc *basesrc, GstCamBaseSrcClass *klass)
     gst_video_info_init(&basesrc->srcpad_info);
     basesrc->is_info_change = FALSE;
 #endif
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
     basesrc->is_dma_drm_caps = FALSE;
 #endif
 
@@ -3738,13 +3738,13 @@ gst_cam_base_src_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
 
     caps = gst_pad_get_current_caps (pad);
 
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
     basesrc->is_dma_drm_caps = gst_video_is_dma_drm_caps(caps);
 #endif
 
 #if GST_VERSION_MINOR >= 18
     if (basesrc->is_info_change) {
-#if GST_VERSION_MINOR == 22 && GST_VERSION_MICRO == 6 || GST_VERSION_MINOR >= 23
+#ifdef GST_DRM_FORMAT
       if (!CameraSrcUtils::gst_video_info_from_dma_drm_caps(&vinfo, caps))
 #else
       if (!gst_video_info_from_caps(&vinfo, caps))
