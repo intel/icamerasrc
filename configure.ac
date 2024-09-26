@@ -97,6 +97,12 @@ AC_ARG_WITH([androidstubs],
 AC_ARG_WITH([haladaptor],
   AC_HELP_STRING([--with-haladaptor], [Link hal adaptor library [default=no]]))
 
+AC_ARG_ENABLE([gstdrmformat],
+  AC_HELP_STRING([--enable-gstdrmformat], [Enable DRM format [default=no]]))
+
+AC_ARG_ENABLE([internalbuild],
+  AC_HELP_STRING([--enable-internalbuild], [Internal build [default=no]]))
+
 AC_ARG_VAR([DEFAULT_CAMERA],
   [the default camera ID])
 
@@ -169,23 +175,12 @@ PKG_CHECK_MODULES(GST, [
   ])
 ])
 
-if test "x$with_haladaptor" == "xyes"; then
-  echo Building with hal_adaptor
-  PKG_CHECK_MODULES(CAMHAL, [hal_adaptor], [
-    AC_SUBST(CAMHAL_CFLAGS)
-    AC_SUBST(CAMHAL_LIBS)
-  ], [
-    AC_MSG_ERROR([Cannot find hal_adaptor pkgconfig])
-  ])
-else
-  echo Building with libcamhal
-  PKG_CHECK_MODULES(CAMHAL, [libcamhal], [
-    AC_SUBST(CAMHAL_CFLAGS)
-    AC_SUBST(CAMHAL_LIBS)
-  ], [
-    AC_MSG_ERROR([Cannot find libcamhal pkgconfig])
-  ])
-fi
+PKG_CHECK_MODULES(CAMHAL, [libcamhal], [
+  AC_SUBST(CAMHAL_CFLAGS)
+  AC_SUBST(CAMHAL_LIBS)
+], [
+  AC_MSG_ERROR([Cannot find libcamhal pkgconfig])
+])
 
 PKG_CHECK_MODULES(LIBDRM, [libdrm libdrm_intel], [
   AC_SUBST(LIBDRM_CFLAGS)
@@ -194,26 +189,28 @@ PKG_CHECK_MODULES(LIBDRM, [libdrm libdrm_intel], [
   AC_MSG_ERROR([Cannot find libdrm pkgconfig])
 ])
 
-PKG_CHECK_MODULES(LIBGSTREAMERVA, [gstreamer-va-1.0], [
-  AC_SUBST(LIBGSTREAMERVA_CFLAGS)
-  AC_SUBST(LIBGSTREAMERVA_LIBS)
-], [
-  AC_MSG_WARN([Cannot find gstreamer-va-1.0 pkgconfig])
-])
+AS_IF([test "x$enable_gstdrmformat" = "xyes"], [
+  PKG_CHECK_MODULES(GST_1_23, [gstreamer-1.0 >= 1.23], [ have_gstdrmformat=yes ], [
+    PKG_CHECK_MODULES(GST_1_22_6, [gstreamer-1.0 = 1.22.6], [ have_gstdrmformat=yes ], [ have_gstdrmformat=no ])
+  ])
 
-PKG_CHECK_MODULES(LIBVA, [libva], [
-  AC_SUBST(LIBVA_CFLAGS)
-  AC_SUBST(LIBVA_LIBS)
-], [
-  AC_MSG_WARN([Cannot find libva pkgconfig])
-])
+  AS_IF([test "x$have_gstdrmformat" = "xyes"], [
+    PKG_CHECK_MODULES(DEP_GSTDRMFORMAT, [gstreamer-va-1.0 libva libva-drm], [
+      AC_SUBST(DEP_GSTDRMFORMAT_CFLAGS)
+      AC_SUBST(DEP_GSTDRMFORMAT_LIBS)
+    ], [
+      have_gstdrmformat=no
+      AC_MSG_ERROR([Need gstreamer-va-1.0 libva libva-drm to enable GstVaDisplay])
+    ])
+  ], [
+      AC_MSG_ERROR([Need GStreamer >= 1.23 or == 1.22.6, and gstreamer-va-1.0 libva libva-drm to enable GstVaDisplay])
+  ])
 
-PKG_CHECK_MODULES(LIBVA_DRM, [libva-drm], [
-  AC_SUBST(LIBVA_DRM_CFLAGS)
-  AC_SUBST(LIBVA_DRM_LIBS)
-], [
-  AC_MSG_WARN([Cannot find libva-drm pkgconfig])
-])
+  AS_IF([test "x$have_gstdrmformat" = "xyes"], [
+    AC_DEFINE([GST_DRM_FORMAT], [1], [GStreamer at least 1.23 or exactly 1.22.6 supports DRM format])
+    AC_MSG_NOTICE(Define GST_DRM_FORMAT)
+  ])
+], [])
 
 dnl check if compiler understands -Wall (if yes, add -Wall to GST_CFLAGS)
 AC_MSG_CHECKING([to see if compiler understands -Wall])
