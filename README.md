@@ -16,25 +16,23 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
 
 ```sh
 export CHROME_SLIM_CAMHAL=ON
-# for libdrm.pc
-export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
-# only for yocto
-export PKG_CONFIG_PATH="/usr/lib/pkgconfig"
 ./autogen.sh
-./configure --with-haladaptor=yes
-make -j8
+./configure --prefix=/usr
+make
 # binary install
 sudo make install
 # build rpm package and then install
 make rpm
 rpm -ivh --force --nodeps icamerasrc-*.rpm
+```
 
 NOTE:
 For gstreamer version > 1.22.0, add support for drm dma buffer.
-It depends on libdrm, please install it when build icamerasrc,
-if user wants to enable drm dma buffer.
-
+It depends on libdrm, please install it when build icamerasrc
+and add option "--enable-gstdrmformat=yes" to enable drm dma buffer.
+```sh
 sudo apt install libdrm-dev
+./configure --prefix=/usr --enable-gstdrmformat=yes
 ```
 
 ## Pipeline examples
