@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2015-2021 Intel Corporation
+ * Copyright (C) 2015-2024 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -463,6 +463,10 @@ struct _GstStreamInfo
   /* Buffer config */
   guint bpl;
   GstVideoInfo info;
+#ifdef GST_DRM_FORMAT
+  /* drm modifier used currently after negotiated. */
+  guint64 drm_modifier;
+#endif
   const char *fmt_name;
   camera_info_t cam_info;
 

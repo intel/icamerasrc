@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2015-2023 Intel Corporation
+ * Copyright (C) 2015-2024 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -46,7 +46,7 @@
 #define LOG_TAG "GstCameraSrc"
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
 
 #include <math.h>
@@ -177,7 +177,7 @@ G_DEFINE_TYPE_WITH_CODE (Gstcamerasrc, gst_camerasrc, GST_TYPE_CAM_PUSH_SRC,
 G_DEFINE_TYPE_WITH_CODE (Gstcamerasrc, gst_camerasrc, GST_TYPE_CAM_PUSH_SRC,
         G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_3A_IF, gst_camerasrc_3a_interface_init);
         G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_ISP_IF, gst_camerasrc_isp_interface_init);
-        G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_DEWARPING_IF, gst_camerasrc_dewarping_interface_init) );
+        G_IMPLEMENT_INTERFACE(GST_TYPE_CAMERASRC_DEWARPING_IF, gst_camerasrc_dewarping_interface_init));
 #endif
 
 static void gst_camerasrc_set_property (GObject * object, guint prop_id,
@@ -922,13 +922,13 @@ static GstStaticPadTemplate video_pad_template = GST_STATIC_PAD_TEMPLATE(
   GST_CAM_BASE_VIDEO_PAD_NAMES,
   GST_PAD_SRC,
   GST_PAD_REQUEST,
-  gst_camerasrc_get_all_caps());
+  {gst_camerasrc_get_all_caps()});
 
 static GstStaticPadTemplate still_pad_template = GST_STATIC_PAD_TEMPLATE(
   GST_CAM_BASE_STILL_PAD_NAMES,
   GST_PAD_SRC,
   GST_PAD_REQUEST,
-  gst_camerasrc_get_all_caps());
+  {gst_camerasrc_get_all_caps()});
 
 static void
 gst_camerasrc_class_init (GstcamerasrcClass * klass)
@@ -952,6 +952,8 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
   gstelement_class->change_state = GST_DEBUG_FUNCPTR(gst_camerasrc_change_state);
   gstelement_class->request_new_pad = GST_DEBUG_FUNCPTR(gst_camerasrc_request_new_pad);
   gstelement_class->release_pad = GST_DEBUG_FUNCPTR(gst_camerasrc_release_pad);
+
+  GST_DEBUG_CATEGORY_INIT(gst_camerasrc_debug, "icamerasrc", 0, "camerasrc source element");
 
   g_object_class_install_property(gobject_class,PROP_BUFFERCOUNT,
       g_param_spec_int("buffer-count","buffer count","The number of buffer to allocate when do the streaming",
@@ -1227,8 +1229,6 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
   basesrc_class->negotiate = GST_DEBUG_FUNCPTR(gst_camerasrc_negotiate);
   basesrc_class->decide_allocation = GST_DEBUG_FUNCPTR(gst_camerasrc_decide_allocation);
   pushsrc_class->fill = GST_DEBUG_FUNCPTR(gst_camerasrc_fill);
-
-  GST_DEBUG_CATEGORY_INIT (gst_camerasrc_debug, "icamerasrc", 0, "camerasrc source element");
 }
 
 static void
@@ -1296,6 +1296,10 @@ gst_camerasrc_init (Gstcamerasrc * camerasrc)
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_config_done = FALSE;
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].activated = TRUE;
   camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].stream_usage = DEFAULT_PROP_SRC_STREAM_USAGE;
+#ifdef GST_DRM_FORMAT
+  camerasrc->streams[GST_CAMERASRC_MAIN_STREAM_ID].drm_modifier =
+      DRM_FORMAT_MOD_LINEAR;
+#endif
 
   /* set default value for 3A manual control*/
   camerasrc->param = new Parameters;
@@ -1440,7 +1444,7 @@ static GstPad *gst_camerasrc_request_new_pad (GstElement * element,
     }
   } else {
     GST_ERROR("Invalid pad name: %s, please follow 'video_%%u' or 'still_%%u' as template to name it", name_templ);
-    GST_CAMSRC_LOCK(camerasrc);
+    GST_CAMSRC_UNLOCK(camerasrc);
     return NULL;
   }
 
@@ -1483,6 +1487,7 @@ static GstPad *gst_camerasrc_request_new_pad (GstElement * element,
   req_pad = GST_CAM_BASE_SRC_CLASS (parent_class)->add_video_pad(basesrc, klass, videopad, index, padname);
   if (!req_pad) {
     GST_ERROR("CameraId=%d failed to add video source pad.", camerasrc->device_id);
+    g_free(padname);
     GST_CAMSRC_UNLOCK(camerasrc);
     return NULL;
   }
@@ -1498,17 +1503,24 @@ static void gst_camerasrc_release_pad (GstElement * element, GstPad * pad)
   Gstcamerasrc *camerasrc = GST_CAMERASRC(element);
   gchar *padname = gst_pad_get_name(pad);
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
+
+  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM) {
+    GST_ERROR("CameraId=%d pad %s has no stream_id %d", camerasrc->device_id,
+      padname, stream_id);
+    g_free(padname);
+    return;
+  }
   GST_INFO("CameraId=%d.", camerasrc->device_id);
 
   GST_CAMSRC_LOCK(camerasrc);
-  g_hash_table_remove(camerasrc->pad_indexes, GUINT_TO_POINTER(camerasrc->stream_map[padname]));
+  g_hash_table_remove(camerasrc->pad_indexes, GUINT_TO_POINTER(stream_id));
   camerasrc->stream_map.erase(padname);
   camerasrc->number_of_activepads--;
   camerasrc->streams[stream_id].activated = FALSE;
   gst_pad_set_active(pad, FALSE);
   gst_element_remove_pad (element, pad);
-  g_free (padname);
   GST_CAMSRC_UNLOCK(camerasrc);
+  g_free (padname);
 }
 
 /**
@@ -2474,8 +2486,7 @@ gst_camerasrc_find_match_stream(Gstcamerasrc* camerasrc,
 }
 
 static gboolean
-gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc,
-                                GstCaps * caps, int stream_id, stream_config_t *stream_list)
+gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc, GstCaps * caps, int stream_id)
 {
   PERF_CAMERA_ATRACE();
   GstVideoInfo info;
@@ -2483,12 +2494,29 @@ gst_camerasrc_get_caps_info (Gstcamerasrc* camerasrc,
   GstStructure *structure = gst_caps_get_structure (caps, 0);
   const gchar *mimetype = gst_structure_get_name (structure);
 
-  /* raw caps, parse into video info */
-  if (!gst_video_info_from_caps (&info, caps)) {
-    GST_ERROR("CameraId=%d, StreamId=%d Caps can't be parsed",
-      camerasrc->device_id, stream_id);
-    return FALSE;
+#ifdef GST_DRM_FORMAT
+  if (!gst_video_is_dma_drm_caps(caps)) {
+#endif
+    /* raw caps, parse into video info */
+    if (!gst_video_info_from_caps(&info, caps)) {
+      GST_ERROR("CameraId=%d, StreamId=%d Caps can't be parsed",
+                camerasrc->device_id, stream_id);
+      return FALSE;
+    }
+#ifdef GST_DRM_FORMAT
+  } else {
+    GstVideoInfoDmaDrm drm_info;
+    if (!gst_video_info_dma_drm_from_caps(&drm_info, caps)) {
+      GST_ERROR("CameraId=%d, StreamId=%d Caps[dma_drm] can't be parsed",
+                camerasrc->device_id, stream_id);
+      return FALSE;
+    }
+    camerasrc->streams[stream_id].drm_modifier = drm_info.drm_modifier;
+    if (!gst_video_info_dma_drm_to_video_info(&drm_info, &info)) {
+      return FALSE;
+    }
   }
+#endif
   GstVideoFormat gst_fmt = GST_VIDEO_INFO_FORMAT (&info);
 
   /* parse format from caps */
@@ -2645,7 +2673,8 @@ gst_camerasrc_set_caps(GstCamBaseSrc *src, GstPad *pad, GstCaps *caps)
 
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
   gchar *padname = gst_pad_get_name(pad);
-  if (stream_id < 0) {
+  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM) {
+    GST_ERROR("pad %s has no stream_id %d", padname, stream_id);
     g_free (padname);
     return FALSE;
   }
@@ -2661,14 +2690,18 @@ gst_camerasrc_set_caps(GstCamBaseSrc *src, GstPad *pad, GstCaps *caps)
   }
 
   /* Get caps info from structure and match from HAL */
-  if (!gst_camerasrc_get_caps_info (camerasrc, caps, stream_id, &camerasrc->stream_list)) {
+  if (!gst_camerasrc_get_caps_info(camerasrc, caps, stream_id)) {
     g_free (padname);
     return FALSE;
   }
 
 #if GST_VERSION_MINOR >= 18
   if (camerasrc->io_mode == GST_CAMERASRC_IO_MODE_DMA_MODE) {
+#ifdef GST_DRM_FORMAT
+    if (CameraSrcUtils::gst_video_info_from_dma_drm_caps(&vinfo, caps)) {
+#else
     if (gst_video_info_from_caps(&vinfo, caps)) {
+#endif
       gst_camerasrc_set_video_alignment(&vinfo, 0, 0, &align);
       gst_video_info_align(&vinfo, &align);
       GST_CAM_BASE_SRC_CLASS(parent_class)->add_video_info(src, &vinfo, TRUE);
@@ -2984,8 +3017,10 @@ gst_camerasrc_decide_allocation(GstCamBaseSrc *bsrc,GstQuery *query, GstPad *pad
   const char* GST_MSDK_SELECT="gstMsdkSelect";
 
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
-  if (stream_id < 0)
+  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM) {
+    GST_ERROR("CameraId=%d has no stream_id %d", camerasrc->device_id, stream_id);
     return FALSE;
+  }
   GST_INFO("CameraId=%d, StreamId=%d.", camerasrc->device_id, stream_id);
 
   active = gst_buffer_pool_is_active(GST_BUFFER_POOL_CAST(camerasrc->streams[stream_id].pool));
@@ -3122,8 +3157,10 @@ gst_camerasrc_fill(GstCamPushSrc *src, GstPad *pad, GstBuffer *buf)
   GstClock *clock;
   GstClockTime base_time, timestamp, duration;
   int stream_id = CameraSrcUtils::get_stream_id_by_pad(camerasrc->stream_map, pad);
-  if (stream_id < 0)
+  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM) {
+    GST_ERROR("CameraId=%d has no stream_id %d", camerasrc->device_id, stream_id);
     return GST_FLOW_ERROR;
+  }
 
   GstCamerasrcBufferPool *bpool = GST_CAMERASRC_BUFFER_POOL(camerasrc->streams[stream_id].pool);
 
