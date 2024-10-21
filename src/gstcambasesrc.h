@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2021 Intel Corporation
+ * Copyright (C) 2015-2024 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -134,6 +134,10 @@ struct _GstCamBaseSrc {
   /* for io_mode=dma_mode use case */
   GstVideoInfo   srcpad_info;
   gboolean       is_info_change;
+#endif
+#ifdef GST_DRM_FORMAT
+  /* indicate current caps is dma_drm type for io_mode=dma_mode. */
+  bool is_dma_drm_caps;
 #endif
 
   /* available to subclass implementations */

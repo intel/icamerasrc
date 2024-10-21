@@ -44,9 +44,6 @@
 #ifndef __GST_CAMERAFORMAT_H__
 #define __GST_CAMERAFORMAT_H__
 
-GST_DEBUG_CATEGORY_EXTERN(gst_camerasrc_debug);
-#define GST_CAT_DEFAULT gst_camerasrc_debug
-
 GstCaps *gst_camerasrc_get_all_caps ();
 
 #endif /* __GST_CAMERAFORMAT_H__ */

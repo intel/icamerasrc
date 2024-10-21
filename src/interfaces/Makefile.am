@@ -66,6 +66,12 @@ libgsticamerainterface_@GST_API_VERSION@_la_LIBADD = $(GST_LIBS) $(CAMHAL_LIBS)
 # for hardening-check
 libgsticamerainterface_@GST_API_VERSION@_la_LDFLAGS = -fPIE -fPIC -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now -version-info $(LT_VERSION_INFO)
 
+# test default fortify level
+if NO_FORTIFY_SOURCE
+libgsticamerainterface_@GST_API_VERSION@_la_CPPFLAGS+= -D_FORTIFY_SOURCE=2
+libgsticamerainterface_@GST_API_VERSION@_la_LDFLAGS+= -D_FORTIFY_SOURCE=2
+endif
+
 libgsticamerainterfaceincludedir = $(includedir)/gstreamer-@GST_API_VERSION@/gst/icamera
 
 libgsticamerainterfaceinclude_HEADERS = gstcamera3ainterface.h \

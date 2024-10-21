@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2021 Intel Corporation
+ * Copyright (C) 2015-2024 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -49,6 +49,8 @@
 #include "gstcampushsrc.h"
 #include "gstcamerasrc.h"
 
+#include "utils.h"
+
 typedef struct _GstCamerasrcBufferPool GstCamerasrcBufferPool;//in use of qbuf&dqbuf
 typedef struct _GstCamerasrcBufferPoolClass GstCamerasrcBufferPoolClass;//in use of _class_init
 
@@ -86,6 +88,11 @@ struct _GstCamerasrcBufferPool
 #if GST_VERSION_MINOR >= 18
   gboolean need_alignment;
   GstVideoAlignment alignment;
+#endif
+
+#ifdef GST_DRM_FORMAT
+  /* operate on /dev/dri/renderD128 */
+  GstVaDisplay *display_drm;
 #endif
 };
 
