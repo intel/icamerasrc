@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2024 Intel Corporation
+ * Copyright (C) 2015-2021 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -42,7 +42,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#  include <config.h>
 #endif
 
 #include "gstcambasesrc.h"
@@ -447,9 +447,6 @@ gst_cam_base_src_init(GstCamBaseSrc *basesrc, GstCamBaseSrcClass *klass)
     gst_video_info_init(&basesrc->srcpad_info);
     basesrc->is_info_change = FALSE;
 #endif
-#ifdef GST_DRM_FORMAT
-    basesrc->is_dma_drm_caps = FALSE;
-#endif
 
     basesrc->blocksize = DEFAULT_BLOCKSIZE;
     basesrc->clock_id = NULL;
@@ -704,10 +701,11 @@ gst_cam_base_src_query_latency (GstCamBaseSrc * src, gboolean * live,
 {
   GstClockTime min;
 
-  if (live) {
-    *live = gst_cam_base_src_is_live(src);
-    GST_LOG_OBJECT(src, "live: %s", *live == TRUE ? "TRUE" : "FALSE");
-  }
+  g_return_val_if_fail (GST_IS_CAM_BASE_SRC (src), FALSE);
+
+  GST_OBJECT_LOCK (src);
+  if (live)
+    *live = src->is_live;
 
   /* if we have a startup latency, report this one, else report 0. Subclasses
    * are supposed to override the query function if they want something
@@ -722,8 +720,10 @@ gst_cam_base_src_query_latency (GstCamBaseSrc * src, gboolean * live,
   if (max_latency)
     *max_latency = min;
 
-  GST_LOG_OBJECT (src, "latency: min %" GST_TIME_FORMAT ", max %"
-    GST_TIME_FORMAT, GST_TIME_ARGS (min), GST_TIME_ARGS (min));
+  GST_LOG_OBJECT (src, "latency: live %d, min %" GST_TIME_FORMAT
+      ", max %" GST_TIME_FORMAT, src->is_live, GST_TIME_ARGS (min),
+      GST_TIME_ARGS (min));
+  GST_OBJECT_UNLOCK (src);
 
   return TRUE;
 }
@@ -845,12 +845,8 @@ static gboolean
 gst_cam_base_src_send_video_stream_start(GstCamBaseSrc *src, GstPad *pad)
 {
   gboolean ret = TRUE;
-  gint stream_id = CameraSrcUtils::get_stream_id_by_pad(src->priv->request_stream_map, pad);
+  guint stream_id = CameraSrcUtils::get_stream_id_by_pad(src->priv->request_stream_map, pad);
 
-  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM - 1) {
-    GST_ERROR_OBJECT(src, "invalid stream_id: %d", stream_id);
-    return FALSE;
-  }
   /* start video stream */
   if (src->priv->muxPriv[stream_id].vid_stream_start_pending) {
     gchar *vid_stream_id;
@@ -1449,11 +1445,7 @@ gst_cam_base_src_default_alloc (GstCamBaseSrc * src, GstPad *pad,
     allocator = priv->allocator;
     params = priv->params;
   } else {
-    gint stream_id = CameraSrcUtils::get_stream_id_by_pad(priv->request_stream_map, pad);
-    if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM - 1) {
-      GST_ERROR_OBJECT(src, "invalid stream_id: %d", stream_id);
-      return GST_FLOW_ERROR;
-    }
+    guint stream_id = CameraSrcUtils::get_stream_id_by_pad(priv->request_stream_map, pad);
     pool = priv->muxPriv[stream_id].vid_pool;
     allocator = priv->muxPriv[stream_id].vid_allocator;
     params = priv->muxPriv[stream_id].vid_params;
@@ -1825,7 +1817,7 @@ gst_cam_base_src_send_event (GstElement * element, GstEvent * event)
       start = (GST_PAD_MODE (src->srcpad) == GST_PAD_MODE_PUSH);
       GST_OBJECT_UNLOCK (src->srcpad);
 
-      if (gst_cam_base_src_is_live(src)) {
+      if (src->is_live) {
         if (!src->live_running)
           start = FALSE;
       }
@@ -2506,7 +2498,7 @@ gst_cam_base_src_get_range (GstCamBaseSrc * src, GstPad *pad, guint64 offset,
   bclass = GST_CAM_BASE_SRC_GET_CLASS (src);
 
 again:
-  if (gst_cam_base_src_is_live(src)) {
+  if (src->is_live) {
     if (G_UNLIKELY (!src->live_running)) {
       ret = gst_cam_base_src_wait_playing (src);
       if (ret != GST_FLOW_OK)
@@ -2587,7 +2579,7 @@ again:
 
   /* no timestamp set and we are at offset 0, we can timestamp with 0 */
   if (offset == 0 && src->segment.time == 0
-      && (gint64)GST_BUFFER_DTS (res_buf) == -1 && !gst_cam_base_src_is_live(src)) {
+      && (gint64)GST_BUFFER_DTS (res_buf) == -1 && !src->is_live) {
     GST_DEBUG_OBJECT (src, "%s pad: setting first timestamp to 0", padname);
     res_buf = gst_buffer_make_writable (res_buf);
     GST_BUFFER_DTS (res_buf) = 0;
@@ -2710,13 +2702,8 @@ gst_cam_base_src_video_get_range (GstCamBaseSrc * src, GstPad *pad, guint64 offs
   GstClockReturn status;
   GstBuffer *res_buf, *in_buf;
   gchar *padname = gst_pad_get_name(pad);
-  gint stream_id = CameraSrcUtils::get_stream_id_by_pad(src->priv->request_stream_map, pad);
+  guint stream_id = CameraSrcUtils::get_stream_id_by_pad(src->priv->request_stream_map, pad);
 
-  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM - 1) {
-    GST_ERROR("pad %s has no stream_id %d", padname, stream_id);
-    g_free(padname);
-    return GST_FLOW_ERROR;
-  }
   bclass = GST_CAM_BASE_SRC_GET_CLASS(src);
 
   if (G_UNLIKELY (!GST_CAM_BASE_SRC_IS_STARTED (src)
@@ -2751,7 +2738,7 @@ gst_cam_base_src_video_get_range (GstCamBaseSrc * src, GstPad *pad, guint64 offs
   }
 
   if (offset == 0 && src->mux[stream_id].vid_segment.time == 0
-      && (gint64)GST_BUFFER_DTS (res_buf) == -1 && !gst_cam_base_src_is_live(src)) {
+      && (gint64)GST_BUFFER_DTS (res_buf) == -1 && !src->is_live) {
     GST_DEBUG_OBJECT (src, "%s pad: setting first timestamp to 0", padname);
     res_buf = gst_buffer_make_writable (res_buf);
     GST_BUFFER_DTS (res_buf) = 0;
@@ -2915,7 +2902,7 @@ gst_cam_base_src_loop (GstPad * pad)
   if (G_UNLIKELY (src->priv->flushing || GST_PAD_IS_FLUSHING (pad)))
     goto flushing;
 
-  blocksize = gst_cam_base_src_get_blocksize(src);
+  blocksize = src->blocksize;
 
   /* if we operate in bytes, we can calculate an offset */
   if (src->segment.format == GST_FORMAT_BYTES) {
@@ -3177,12 +3164,8 @@ static void gst_cam_base_src_video_loop (GstPad * pad)
   guint blocksize;
   gchar *padname = gst_pad_get_name(pad);
   GstCamBaseSrc *src = GST_CAM_BASE_SRC(GST_OBJECT_PARENT(pad));
-  gint stream_id = CameraSrcUtils::get_stream_id_by_pad(src->priv->request_stream_map, pad);
+  guint stream_id = CameraSrcUtils::get_stream_id_by_pad(src->priv->request_stream_map, pad);
 
-  if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM - 1) {
-    GST_DEBUG_OBJECT(src, "%s pad: invalid stream id: %d", padname, stream_id);
-    goto done;
-  }
   /* Just leave immediately if we're flushing */
   GST_VID_LIVE_LOCK (src, stream_id);
   if (G_UNLIKELY (src->priv->flushing || GST_PAD_IS_FLUSHING (pad)))
@@ -3211,7 +3194,7 @@ static void gst_cam_base_src_video_loop (GstPad * pad)
   }
 
   GST_VID_LIVE_LOCK(src, stream_id);
-  blocksize = gst_cam_base_src_get_blocksize(src);
+  blocksize = src->blocksize;
 
   /* we only consider the scenario of GST_FORMAT_TIME */
   if (src->mux[stream_id].vid_segment.format == GST_FORMAT_TIME)
@@ -3381,12 +3364,7 @@ gst_cam_base_src_set_allocation (GstCamBaseSrc * basesrc, GstPad *pad,
     else
        gst_allocation_params_init(&priv->params);
   } else {
-    gint stream_id = CameraSrcUtils::get_stream_id_by_pad(priv->request_stream_map, pad);
-    if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM - 1) {
-      GST_ERROR_OBJECT(basesrc, "invalid stream_id: %d", stream_id);
-      GST_OBJECT_UNLOCK(basesrc);
-      return GST_FLOW_ERROR;
-    }
+    guint stream_id = CameraSrcUtils::get_stream_id_by_pad(priv->request_stream_map, pad);
     oldalloc = priv->muxPriv[stream_id].vid_allocator;
     oldpool = priv->muxPriv[stream_id].vid_pool;
     priv->muxPriv[stream_id].vid_allocator = allocator;
@@ -3639,12 +3617,11 @@ gst_cam_base_src_default_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
   gboolean result = FALSE;
   GstCaps *current_caps = NULL;
 
-  current_caps = gst_pad_get_current_caps (pad);
+    current_caps = gst_pad_get_current_caps (pad);
 
   if (current_caps){
-    GST_DEBUG_OBJECT (basesrc, "straight return without negotiate");
-    gst_caps_unref (current_caps);
-    return TRUE;
+        GST_DEBUG_OBJECT (basesrc, "straight return without negotiate");
+          return TRUE;
   }
 
   /* first see what is possible on our source pad */
@@ -3738,17 +3715,9 @@ gst_cam_base_src_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
 
     caps = gst_pad_get_current_caps (pad);
 
-#ifdef GST_DRM_FORMAT
-    basesrc->is_dma_drm_caps = gst_video_is_dma_drm_caps(caps);
-#endif
-
 #if GST_VERSION_MINOR >= 18
     if (basesrc->is_info_change) {
-#ifdef GST_DRM_FORMAT
-      if (!CameraSrcUtils::gst_video_info_from_dma_drm_caps(&vinfo, caps))
-#else
       if (!gst_video_info_from_caps(&vinfo, caps))
-#endif
         GST_DEBUG_OBJECT (basesrc, "Failed to get video info from caps.");
       else {
         if (!gst_video_info_is_equal(&basesrc->srcpad_info, &vinfo))
@@ -3761,11 +3730,6 @@ gst_cam_base_src_negotiate (GstCamBaseSrc * basesrc, GstPad *pad)
     else
 #endif
       result = gst_cam_base_src_prepare_allocation (basesrc, caps, pad);
-
-#if GST_VERSION_MINOR >= 18
-    if (tmp_caps)
-      gst_caps_unref (tmp_caps);
-#endif
 
     if (caps)
       gst_caps_unref (caps);
@@ -4354,11 +4318,6 @@ gst_cam_base_src_activate_mode (GstPad * pad, GstObject * parent,
           res = gst_cam_base_src_activate_push (pad, parent, active);
         } else {
           int stream_id = CameraSrcUtils::get_stream_id_by_pad(src->priv->request_stream_map, pad);
-          if (stream_id < 0 || stream_id >= GST_CAMERASRC_MAX_STREAM_NUM - 1) {
-            GST_ERROR("pad %s has no stream_id %d", padname, stream_id);
-            res = FALSE;
-            break;
-          }
           src->priv->muxPriv[stream_id].vid_stream_start_pending = active;
           res = gst_cam_base_src_video_activate_push (pad, parent, stream_id, active);
         }

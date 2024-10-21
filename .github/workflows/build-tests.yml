@@ -66,7 +66,7 @@ jobs:
           cd "${GITHUB_WORKSPACE}/hal"
 
           mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_CAMHAL_ADAPTOR=ON -DBUILD_CAMHAL_PLUGIN=ON -DIPU_VERSIONS="ipu6;ipu6ep;ipu6epmtl" -DUSE_PG_LITE_PIPE=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ../src/hal/hal_adaptor
           make -j$(nproc) install
 
       - uses: actions/checkout@v3
@@ -77,6 +77,18 @@ jobs:
         env:
           CHROME_SLIM_CAMHAL: ON
         run: |
+          case "${{ matrix.os }}" in
+            ("ubuntu:24.04")
+              fortify_level=3
+              ;;
+            ("ubuntu:22.04"|"ubuntu:20.04")
+              fortify_level=2
+              ;;
+            (*)
+              echo "${{ matrix.os }} is unsupported yet. Please find the default fortify_level in /usr/share/perl5/Dpkg/Vendor/Ubuntu.pm or /usr/share/perl5/Dpkg/Vendor/Debian.pm."
+              exit 1
+              ;;
+          esac
           cd "${GITHUB_WORKSPACE}/icamerasrc"
 
-          ./autogen.sh && make -j$(nproc) install
+          CPPFLAGS="-D_FORTIFY_SOURCE=$fortify_level" ./autogen.sh && make -j$(nproc) install

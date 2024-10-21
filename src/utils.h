@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2016-2024 Intel Corporation
+ * Copyright (C) 2016-2021 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -55,15 +55,6 @@
 #include <linux/videodev2.h>
 #include <map>
 
-#ifdef GST_DRM_FORMAT
-#include <va/va_drmcommon.h>
-#include <drm_fourcc.h>
-#define GST_USE_UNSTABLE_API
-#include <gst/va/gstva.h>
-#undef GST_USE_UNSTABLE_API
-#include <gst/video/video-info-dma.h>
-#endif
-
 using namespace std;
 
 #define ALIGN(val, alignment) (((val)+(alignment)-1) & ~((alignment)-1))
@@ -113,25 +104,7 @@ namespace CameraSrcUtils {
 
   void get_stream_info_by_caps(GstCaps *caps, const char **format, int *width, int *height);
 
-  int get_stream_id_by_pad(map<string, int> &streamMap, GstPad *pad);
-
-#ifdef GST_DRM_FORMAT
-
-  gboolean gst_video_info_from_dma_drm_caps(GstVideoInfo *info,
-                                            const GstCaps *caps);
-
-  gboolean _dma_fmt_to_dma_drm_fmts(GstVaDisplay *display,
-                                    const GstVideoFormat fmt,
-                                    GValue *dma_drm_fmts);
-
-  gboolean _va_create_surface_and_export_to_dmabuf(
-      GstVaDisplay *display, guint usage_hint, guint64 *modifiers,
-      guint num_modifiers, GstVideoInfo *info, VASurfaceID *ret_surface,
-      VADRMPRIMESurfaceDescriptor *ret_desc);
-
-  goffset _get_fd_size(gint fd);
-
-#endif
-  } // namespace CameraSrcUtils
+  int get_stream_id_by_pad(map<string, int> streamMap, GstPad *pad);
+}
 
 #endif

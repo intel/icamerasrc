@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2024 Intel Corporation
+#  Copyright (C) 2015-2023 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -73,7 +73,6 @@ libgsticamerasrc_la_CPPFLAGS = \
     $(GST_CFLAGS) \
     $(CAMHAL_CFLAGS) \
     $(LIBDRM_CFLAGS) \
-    $(DEP_GSTDRMFORMAT_CFLAGS) \
     -std=c++11 \
     -Werror \
     $(LIBUTILS_CFLAGS) \
@@ -92,18 +91,11 @@ libgsticamerasrc_la_LIBADD = $(GST_LIBS) \
     -lgstvideo-$(GST_API_VERSION) \
     interfaces/libgsticamerainterface-$(GST_API_VERSION).la \
     $(LIBDRM_LIBS) \
-    $(DEP_GSTDRMFORMAT_LIBS) \
     $(CAMHAL_LIBS)
 
 libgsticamerasrc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 # for hardening-check
 libgsticamerasrc_la_LDFLAGS += -fPIE -fPIC -Wformat -Wformat-security -Wl,-z,relro -Wl,-z,now
-
-# test default fortify level
-if NO_FORTIFY_SOURCE
-libgsticamerasrc_la_CPPFLAGS+= -D_FORTIFY_SOURCE=2
-libgsticamerasrc_la_LDFLAGS+= -D_FORTIFY_SOURCE=2
-endif
 
 # headers we need but don't want installed
 noinst_HEADERS = gstcamerasrc.h \
