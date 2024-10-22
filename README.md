@@ -12,27 +12,21 @@ This repository supports MIPI cameras through the IPU6/IPU6EP/IPU6SE on Intel Ti
 
 ## Build instructions:
 * Prerequisites: ipu6-camera-bins and ipu6-camera-hal installed 
-* Prerequisites: libdrm-dev libva-dev libgstreamer-plugins-bad1.0-dev
+* Prerequisites: libdrm-dev
 
 ```sh
 export CHROME_SLIM_CAMHAL=ON
+# for libdrm.pc
+export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
+# only for yocto
+export PKG_CONFIG_PATH="/usr/lib/pkgconfig"
 ./autogen.sh
-./configure --prefix=/usr
-make
+make -j8
 # binary install
 sudo make install
 # build rpm package and then install
 make rpm
 rpm -ivh --force --nodeps icamerasrc-*.rpm
-```
-
-NOTE:
-For gstreamer version > 1.22.0, add support for drm dma buffer.
-It depends on libdrm, please install it when build icamerasrc
-and add option "--enable-gstdrmformat=yes" to enable drm dma buffer.
-```sh
-sudo apt install libdrm-dev
-./configure --prefix=/usr --enable-gstdrmformat=yes
 ```
 
 ## Pipeline examples
@@ -70,5 +64,4 @@ sudo -E gst-launch-1.0 icamerasrc device-name=ov13858-uf af-mode=2 ! video/x-raw
 * Sensor ar0234
 ```
 sudo -E gst-launch-1.0 icamerasrc device-name=ar0234 ! video/x-raw,format=NV12,width=1280,height=960 ! videoconvert ! glimagesink
-sudo -E gst-launch-1.0 icamerasrc device-name=ar0234 io-mode=dma_mode ! 'video/x-raw(memory:DMABuf),drm-format=NV12,width=1280,height=960' ! glimagesink
 ```

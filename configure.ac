@@ -1,6 +1,6 @@
 #
 #  GStreamer
-#  Copyright (C) 2015-2024 Intel Corporation
+#  Copyright (C) 2015-2023 Intel Corporation
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -94,15 +94,6 @@ AC_ARG_WITH([androidstubs],
   [],
   [with_androidstubs=no])
 
-AC_ARG_WITH([haladaptor],
-  AC_HELP_STRING([--with-haladaptor], [Link hal adaptor library [default=no]]))
-
-AC_ARG_ENABLE([gstdrmformat],
-  AC_HELP_STRING([--enable-gstdrmformat], [Enable DRM format [default=no]]))
-
-AC_ARG_ENABLE([internalbuild],
-  AC_HELP_STRING([--enable-internalbuild], [Internal build [default=no]]))
-
 AC_ARG_VAR([DEFAULT_CAMERA],
   [the default camera ID])
 
@@ -189,29 +180,6 @@ PKG_CHECK_MODULES(LIBDRM, [libdrm libdrm_intel], [
   AC_MSG_ERROR([Cannot find libdrm pkgconfig])
 ])
 
-AS_IF([test "x$enable_gstdrmformat" = "xyes"], [
-  PKG_CHECK_MODULES(GST_1_23, [gstreamer-1.0 >= 1.23], [ have_gstdrmformat=yes ], [
-    PKG_CHECK_MODULES(GST_1_22_6, [gstreamer-1.0 = 1.22.6], [ have_gstdrmformat=yes ], [ have_gstdrmformat=no ])
-  ])
-
-  AS_IF([test "x$have_gstdrmformat" = "xyes"], [
-    PKG_CHECK_MODULES(DEP_GSTDRMFORMAT, [gstreamer-va-1.0 libva libva-drm], [
-      AC_SUBST(DEP_GSTDRMFORMAT_CFLAGS)
-      AC_SUBST(DEP_GSTDRMFORMAT_LIBS)
-    ], [
-      have_gstdrmformat=no
-      AC_MSG_ERROR([Need gstreamer-va-1.0 libva libva-drm to enable GstVaDisplay])
-    ])
-  ], [
-      AC_MSG_ERROR([Need GStreamer >= 1.23 or == 1.22.6, and gstreamer-va-1.0 libva libva-drm to enable GstVaDisplay])
-  ])
-
-  AS_IF([test "x$have_gstdrmformat" = "xyes"], [
-    AC_DEFINE([GST_DRM_FORMAT], [1], [GStreamer at least 1.23 or exactly 1.22.6 supports DRM format])
-    AC_MSG_NOTICE(Define GST_DRM_FORMAT)
-  ])
-], [])
-
 dnl check if compiler understands -Wall (if yes, add -Wall to GST_CFLAGS)
 AC_MSG_CHECKING([to see if compiler understands -Wall])
 save_CFLAGS="$CFLAGS"
@@ -222,38 +190,6 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([ ], [ ])], [
 ], [
   AC_MSG_RESULT([no])
 ])
-CFLAGS="$save_CFLAGS"
-
-AC_DEFUN([AC_CHECK_FORTIFY_SOURCE], [
-  AC_MSG_CHECKING([for _FORTIFY_SOURCE value with -O2])
-  old_CFLAGS="$CFLAGS"
-  CFLAGS="$CFLAGS -O2"
-  AC_RUN_IFELSE(
-    [AC_LANG_SOURCE([[
-      #include <stdio.h>
-      #ifndef _FORTIFY_SOURCE
-      #error
-      #endif
-      int main() { printf("%d\n", _FORTIFY_SOURCE); return 0; }
-    ]])],
-    [
-      fortify_source_value=`./conftest$EXEEXT`
-    ],
-    [
-      AC_MSG_RESULT([no])
-      fortify_source_value=0
-    ],
-    [
-      AC_MSG_CHECKING([for cross-compiling _FORTIFY_SOURCE depends on toolchain])
-      AC_MSG_RESULT([no])
-      fortify_source_value=0
-    ]
-  )
-  CFLAGS="$old_CFLAGS"
-  AC_SUBST([fortify_source_value])
-])
-AC_CHECK_FORTIFY_SOURCE
-AM_CONDITIONAL([NO_FORTIFY_SOURCE], [test "x$fortify_source_value" = "x0"])
 
 dnl set the plugindir where plugins should be installed (for src/Makefile.am)
 if test "x${prefix}" = "x$HOME"; then
