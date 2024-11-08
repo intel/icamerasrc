@@ -1664,23 +1664,27 @@ gst_camerasrc_parse_string_to_matrix(const char *tra_str, float **array, int row
   * parse cct_range property, assign max and min value to  camera_range_t
   */
 static int
-gst_camerasrc_parse_cct_range(Gstcamerasrc *src, gchar *cct_range_str, camera_range_t &cct_range)
+gst_camerasrc_parse_cct_range(gchar *cct_range_str, camera_range_t &cct_range)
 {
   char *token = NULL;
   char cct_range_array[64]={'\0'};
 
   snprintf(cct_range_array, sizeof(cct_range_array), "%s", cct_range_str);
-  token = strtok(cct_range_array,"~");
+  token = strtok(cct_range_array, "~");
   if (token == NULL) {
-      g_print("failed to acquire cct range.");
+      g_print("failed to set cct range min");
       return -1;
+  } else {
+    cct_range.min = atof(token);
   }
-  cct_range.min = atoi(token);
-  cct_range.max = atoi(src->man_ctl.cct_range+strlen(token)+1);
-  if (cct_range.min < 1800)
-      cct_range.min = 1800;
-  if (cct_range.max > 15000)
-      cct_range.max = 15000;
+
+  token = strtok(NULL, "~");
+  if (token == NULL) {
+      g_print("failed to acquire cct range max");
+      return -1;
+  } else {
+    cct_range.max = atof(token);
+  }
 
   return 0;
 }
@@ -2084,7 +2088,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       g_free(src->man_ctl.cct_range);
       src->man_ctl.cct_range = g_strdup(g_value_get_string (value));
       src->param->getAwbCctRange(cct_range);
-      ret = gst_camerasrc_parse_cct_range(src, src->man_ctl.cct_range, cct_range);
+      ret = gst_camerasrc_parse_cct_range(src->man_ctl.cct_range, cct_range);
       if (ret == 0)
         src->param->setAwbCctRange(cct_range);
       break;

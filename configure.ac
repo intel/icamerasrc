@@ -94,9 +94,6 @@ AC_ARG_WITH([androidstubs],
   [],
   [with_androidstubs=no])
 
-AC_ARG_WITH([haladaptor],
-  AC_HELP_STRING([--with-haladaptor], [Link hal adaptor library [default=no]]))
-
 AC_ARG_ENABLE([gstdrmformat],
   AC_HELP_STRING([--enable-gstdrmformat], [Enable DRM format [default=no]]))
 
