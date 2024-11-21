@@ -50,4 +50,4 @@ pkgconfig_DATA = libgsticamerasrc.pc
 
 .PHONY: rpm
 rpm:
-	./rpm/build_rpm.sh ${BUILD_NUMBER}
+	LIBDIR=$(libdir) ./rpm/build_rpm.sh ${BUILD_NUMBER}
