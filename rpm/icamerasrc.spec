@@ -47,7 +47,7 @@ Version: %{version}
 Release: %{release}
 License: LGPL
 Group: Development/Tools
-Prefix: /usr/lib/gstreamer-1.0
+Prefix: %{libdir}/gstreamer-1.0
 BuildRoot: %(mktemp -ud %{_builddir}/%{name}-%{version}-%{release}-XXXXXX)
 %description
 Linux camera src.
@@ -57,20 +57,20 @@ Linux camera src.
 
 %install
 rm -rf %{buildroot}
-mkdir -p %{buildroot}/usr/lib/gstreamer-1.0
-mkdir -p %{buildroot}/usr/lib/pkgconfig
+mkdir -p %{buildroot}/%{libdir}/gstreamer-1.0
+mkdir -p %{buildroot}/%{libdir}/pkgconfig
 mkdir -p %{buildroot}/usr/include/icamerasrc/interfaces
 mkdir -p %{buildroot}/usr/include/gstreamer-1.0/gst
 
-cp -v %{_srcdir}/src/.libs/*.so* %{buildroot}/usr/lib/gstreamer-1.0
-cp -v %{_srcdir}/src/.libs/*.la  %{buildroot}/usr/lib/gstreamer-1.0
-cp -v %{_srcdir}/src/interfaces/.libs/*.so* %{buildroot}/usr/lib/
-cp -v %{_srcdir}/src/interfaces/.libs/*.la %{buildroot}/usr/lib/
+cp -v %{_srcdir}/src/.libs/*.so* %{buildroot}/%{libdir}/gstreamer-1.0
+cp -v %{_srcdir}/src/.libs/*.la  %{buildroot}/%{libdir}/gstreamer-1.0
+cp -v %{_srcdir}/src/interfaces/.libs/*.so* %{buildroot}/%{libdir}/
+cp -v %{_srcdir}/src/interfaces/.libs/*.la %{buildroot}/%{libdir}/
 cp -v %{_srcdir}/src/interfaces/*.h %{buildroot}/usr/include/icamerasrc/interfaces
 cp -v %{_srcdir}/src/interfaces/*.h %{buildroot}/usr/include/gstreamer-1.0/gst
 cp -v %{_srcdir}/src/gst/gstcamerasrcmeta.h %{buildroot}/usr/include/gstreamer-1.0/gst
-sed 's/^prefix=\/.\+$/prefix=\/usr/' %{_srcdir}/libgsticamerasrc.pc > %{buildroot}/usr/lib/pkgconfig/libgsticamerasrc.pc
+sed 's/^prefix=\/.\+$/prefix=\/usr/' %{_srcdir}/libgsticamerasrc.pc > %{buildroot}/%{libdir}/pkgconfig/libgsticamerasrc.pc
 
 %files
-/usr/lib/
+%{libdir}/
 /usr/include/
