@@ -70,6 +70,7 @@ rpmbuild --define "_buildshell /bin/bash"  \
          --define "_tmppath  ${tempdir}/tmp" \
          --define "version   ${rpm_version}" \
          --define "release   ${rpm_release}" \
+         --define "libdir    ${LIBDIR}" \
          -bb "$(dirname $0)"/icamerasrc.spec | tee "$tempdir/rpmbuild.log"
 
 # Copy rpm to source directory.
