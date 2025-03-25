@@ -662,9 +662,6 @@ static gboolean va_create_surfaces(GstVaDisplay *display, guint rt_format,
   attrs[1].value.value.i = (desc && desc->num_objects > 0)
                                ? VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2
                                : VA_SURFACE_ATTRIB_MEM_TYPE_VA;
-  VADRMFormatModifierList modifier_list;
-  modifier_list.num_modifiers = num_modifiers;
-  modifier_list.modifiers = modifiers;
   VASurfaceAttribExternalBuffers extbuf = {0};
   extbuf.width = width;
   extbuf.height = height;
@@ -703,16 +700,6 @@ static gboolean va_create_surfaces(GstVaDisplay *display, guint rt_format,
     attrs[num_attrs].flags = VA_SURFACE_ATTRIB_SETTABLE;
     attrs[num_attrs].value.type = VAGenericValueTypePointer;
     attrs[num_attrs].value.value.p = &extbuf;
-    num_attrs++;
-    /* *INDENT-ON* */
-  }
-
-  if (num_modifiers > 0 && modifiers) {
-    /* *INDENT-OFF* */
-    attrs[num_attrs].type = VASurfaceAttribDRMFormatModifiers;
-    attrs[num_attrs].flags = VA_SURFACE_ATTRIB_SETTABLE;
-    attrs[num_attrs].value.type = VAGenericValueTypePointer;
-    attrs[num_attrs].value.value.p = &modifier_list;
     num_attrs++;
     /* *INDENT-ON* */
   }
