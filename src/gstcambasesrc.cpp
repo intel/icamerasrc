@@ -2460,7 +2460,7 @@ gst_cam_base_src_update_length (GstCamBaseSrc * src, guint64 offset, guint * len
       /* make sure we don't exceed the configured segment stop
        * if it was set */
       if (stop != -1)
-        maxsize = MIN ((gint64)size, stop);
+        maxsize = MAX(0, MIN ((gint64)size, stop));
       else
         maxsize = size;
 
