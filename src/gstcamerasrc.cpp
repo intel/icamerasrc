@@ -365,15 +365,15 @@ gst_camerasrc_io_mode_get_type(void)
 
   static const GEnumValue method_types[] = {
     {GST_CAMERASRC_IO_MODE_USERPTR,
-        "UserPtr", "userptr"},
+        "UserPtr (For PSYS output support)", "userptr"},
     {GST_CAMERASRC_IO_MODE_MMAP,
-        "MMAP", "mmap"},
+        "MMAP (For ISYS output support)", "mmap"},
     {GST_CAMERASRC_IO_MODE_DMA_EXPORT,
-        "DMA export", "dma"},
+        "DMA export (Obsolete)", "dma"},
     {GST_CAMERASRC_IO_MODE_DMA_IMPORT,
-        "DMA import", "dma_import"},
+        "DMA import (Obsolete)", "dma_import"},
     {GST_CAMERASRC_IO_MODE_DMA_MODE,
-        "DMA import", "dma_mode"},
+        "DMA import (Both PSYS and ISYS output support)", "dma_mode"},
     {0, NULL, NULL},
   };
 
