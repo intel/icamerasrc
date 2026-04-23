@@ -1442,6 +1442,8 @@ gst_cam_base_src_default_alloc (GstCamBaseSrc * src, GstPad *pad,
   GstAllocator *allocator = NULL;
   GstAllocationParams params;
 
+  GST_OBJECT_LOCK (src);
+
   /* distinguish which pad is using, then assign pointers to
    * bufferpool, allocator and params */
   if (pad == src->srcpad) {
@@ -1458,6 +1460,8 @@ gst_cam_base_src_default_alloc (GstCamBaseSrc * src, GstPad *pad,
     allocator = priv->muxPriv[stream_id].vid_allocator;
     params = priv->muxPriv[stream_id].vid_params;
   }
+
+  GST_OBJECT_UNLOCK (src);
 
   if (pool) {
     ret = gst_buffer_pool_acquire_buffer (pool, buffer, NULL);
@@ -3184,27 +3188,34 @@ static void gst_cam_base_src_video_loop (GstPad * pad)
     goto done;
   }
   /* Just leave immediately if we're flushing */
+  GST_LIVE_LOCK (src);
   GST_VID_LIVE_LOCK (src, stream_id);
   if (G_UNLIKELY (src->priv->flushing || GST_PAD_IS_FLUSHING (pad)))
     goto flushing;
   GST_VID_LIVE_UNLOCK (src, stream_id);
+  GST_LIVE_UNLOCK (src);
 
   gst_cam_base_src_send_video_stream_start(src, pad);
 
   /* The stream-start event could've caused something to flush us */
+  GST_LIVE_LOCK (src);
   GST_VID_LIVE_LOCK (src, stream_id);
   if (G_UNLIKELY (src->priv->flushing || GST_PAD_IS_FLUSHING (pad)))
     goto flushing;
   GST_VID_LIVE_UNLOCK (src, stream_id);
+  GST_LIVE_UNLOCK (src);
 
   /* check if we need to renegotiate */
   if (gst_pad_check_reconfigure (pad)) {
     if (!gst_cam_base_src_negotiate (src, pad)) {
       gst_pad_mark_reconfigure (pad);
+      GST_LIVE_LOCK(src);
+      GST_VID_LIVE_LOCK(src, stream_id);
       if (GST_PAD_IS_FLUSHING(pad)) {
-        GST_VID_LIVE_LOCK(src, stream_id);
         goto flushing;
       } else {
+        GST_VID_LIVE_UNLOCK (src, stream_id);
+        GST_LIVE_UNLOCK (src);
         goto negotiate_failed;
       }
     }
@@ -3272,6 +3283,7 @@ flushing:
   {
     GST_DEBUG_OBJECT(src, "%s pad: is flushing", padname);
     GST_VID_LIVE_UNLOCK(src, stream_id);
+    GST_LIVE_UNLOCK(src);
     ret = GST_FLOW_FLUSHING;
     goto pause;
   }
@@ -4484,10 +4496,14 @@ gst_cam_base_src_get_allocator (GstCamBaseSrc * src,
 {
   g_return_if_fail (GST_IS_CAM_BASE_SRC (src));
 
+  GST_OBJECT_LOCK (src);
+
   if (allocator)
     *allocator = src->priv->allocator ?
         (GstAllocator *)gst_object_ref (src->priv->allocator) : NULL;
 
   if (params)
     *params = src->priv->params;
+
+  GST_OBJECT_UNLOCK (src);
 }
