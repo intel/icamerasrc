@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2024 Intel Corporation
+ * Copyright (C) 2015-2026 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -4457,24 +4457,6 @@ failure:
     GST_DEBUG_OBJECT (basesrc, "parent failed state change");
     return result;
   }
-}
-
-/**
- * gst_cam_base_src_get_buffer_pool:
- * @src: a #GstCamBaseSrc
- *
- * Returns: (transfer full): the instance of the #GstBufferPool used
- * by the src; unref it after usage.
- */
-GstBufferPool *
-gst_cam_base_src_get_buffer_pool (GstCamBaseSrc * src)
-{
-  g_return_val_if_fail (GST_IS_CAM_BASE_SRC (src), NULL);
-
-  if (src->priv->pool)
-    return (GstBufferPool *)gst_object_ref (src->priv->pool);
-
-  return NULL;
 }
 
 /**
