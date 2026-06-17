@@ -1,6 +1,6 @@
 /*
  * GStreamer
- * Copyright (C) 2015-2024 Intel Corporation
+ * Copyright (C) 2015-2026 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -348,8 +348,6 @@ void gst_cam_base_src_set_do_timestamp (GstCamBaseSrc *src, gboolean timestamp);
 gboolean gst_cam_base_src_get_do_timestamp (GstCamBaseSrc *src);
 
 gboolean gst_cam_base_src_set_caps (GstCamBaseSrc * src, GstCaps * caps);
-
-GstBufferPool *gst_cam_base_src_get_buffer_pool  (GstCamBaseSrc *src);
 
 void gst_cam_base_src_get_allocator    (GstCamBaseSrc *src,
                                                GstAllocator **allocator,
