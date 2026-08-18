@@ -123,6 +123,11 @@ create_structure (guint32 fourcc)
           "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_YUY2), (void *)NULL);
     }
     break;
+    case V4L2_PIX_FMT_GREY:{
+      structure = gst_structure_new ("video/x-raw",
+          "format", G_TYPE_STRING, gst_video_format_to_string (GST_VIDEO_FORMAT_GRAY8), (void *)NULL);
+    }
+    break;
     case V4L2_PIX_FMT_SGRBG8:{
       structure = gst_structure_new_empty ("video/x-bayer");
     }
