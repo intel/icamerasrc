@@ -120,6 +120,7 @@ enum
   PROP_AF_REGION,
   PROP_EXPOSURE_TIME_RANGE,
   PROP_GAIN_RANGE,
+  PROP_FPS_RANGE,
   PROP_CONVERGE_SPEED,
   PROP_CONVERGE_SPEED_MODE,
   /* Backlight Settings*/
@@ -902,6 +903,9 @@ gst_camerasrc_finalize (Gstcamerasrc *camerasrc)
   delete camerasrc->isp_control_tags;
   camerasrc->isp_control_tags = NULL;
 
+  g_free(camerasrc->man_ctl.fps_range);
+  camerasrc->man_ctl.fps_range = NULL;
+
   for (int i = 0; i < GST_CAMERASRC_MAX_STREAM_NUM; i++) {
     camerasrc->streams[i].activated = FALSE;
   }
@@ -1136,6 +1140,11 @@ gst_camerasrc_class_init (GstcamerasrcClass * klass)
   g_object_class_install_property(gobject_class,PROP_GAIN_RANGE,
       g_param_spec_string("gain-range","AE gain range","AE gain range",
         DEFAULT_PROP_GAIN_RANGE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property(gobject_class,PROP_FPS_RANGE,
+      g_param_spec_string("fps-range","AE frame rate range",
+        "Frame rate range AE may use, e.g. 15~30: lets auto exposure lengthen frames in low light",
+        DEFAULT_PROP_FPS_RANGE, (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class, PROP_CUSTOM_AIC_PARAMETER,
       g_param_spec_string("custom-aic-param","Custom Aic Parameter","Custom Aic Parameter",
@@ -1884,6 +1893,7 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
   camera_range_t cct_range;
   camera_range_t exposure_time_range;
   camera_range_t gain_range;
+  camera_range_t fps_range;
   camera_coordinate_t white_point;
   unsigned int custom_aic_param_len = 0;
   camera_crop_region_t crop_region;
@@ -2150,6 +2160,18 @@ gst_camerasrc_set_property (GObject * object, guint prop_id,
       if (ret == 0)
         src->param->setSensitivityGainRange(gain_range);
       break;
+    case PROP_FPS_RANGE:
+      g_free(src->man_ctl.fps_range);
+      src->man_ctl.fps_range = g_strdup(g_value_get_string(value));
+      // NULL is the default; the HAL has no way to drop a range once set.
+      if (src->man_ctl.fps_range == NULL)
+        break;
+      ret = gst_camerasrc_parse_range(src->man_ctl.fps_range,
+              fps_range.min,
+              fps_range.max);
+      if (ret == 0)
+        src->param->setFpsRange(fps_range);
+      break;
     case PROP_AWB_COLOR_TRANSFORM:
       ret = gst_camerasrc_parse_string_to_matrix(g_value_get_string (value),
                                     (float**)(transform.color_transform), 3, 3);
@@ -2379,6 +2401,9 @@ gst_camerasrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_GAIN_RANGE:
       g_value_set_string (value, src->man_ctl.gain_range);
+      break;
+    case PROP_FPS_RANGE:
+      g_value_set_string (value, src->man_ctl.fps_range);
       break;
     case PROP_AWB_COLOR_TRANSFORM:
       g_value_set_string(value, src->man_ctl.color_transform);
