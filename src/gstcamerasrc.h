@@ -143,6 +143,7 @@ using namespace std;
 #define DEFAULT_PROP_AF_REGION NULL
 #define DEFAULT_PROP_EXPOSURE_TIME_RANGE NULL
 #define DEFAULT_PROP_GAIN_RANGE NULL
+#define DEFAULT_PROP_FPS_RANGE NULL
 #define DEFAULT_PROP_CCT_RANGE NULL
 #define DEFAULT_PROP_COLOR_TRANSFORM NULL
 #define DEFAULT_PROP_CUSTOM_AIC_PARAMETER NULL
@@ -407,6 +408,7 @@ struct _Gst3AManualControl
   int converge_speed_mode;
   gchar *exp_time_range;
   gchar *gain_range;
+  gchar *fps_range;
   /* Backlight Settings*/
   int blc_area_mode;
   guint wdr_level;
